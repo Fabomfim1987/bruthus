@@ -1311,17 +1311,28 @@ function salvarHistorico(fileName) {
   historico.unshift(item);
   if(historico.length>5)historico=historico.slice(0,5);
   try{
+    // Save with snapshot in memory only (too large for localStorage)
     const light=historico.map(h=>({...h,snapshot:undefined}));
     localStorage.setItem('bruthus_hist',JSON.stringify(light));
   }catch(e){}
+  // Keep snapshot in memory for current session
+  historico[0].snapshot=allResults;
   renderHistorico();
+}
+
+function carregarHistorico(id) {
+  const h=historico.find(x=>x.id===id);
+  if(!h||!h.snapshot){showToast('Snapshot não disponível — reprocesse o arquivo','error');return;}
+  allResults=h.snapshot;
+  renderAll(h.fileName);
+  showToast('Carregado: '+h.fileName,'success');
 }
 
 function renderHistorico() {
   const list=document.getElementById('historico-list');
   if(!historico.length){list.innerHTML='<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px">Nenhum arquivo processado ainda</div>';return;}
   list.innerHTML=historico.map(h=>`
-    <div class="hist-item">
+    <div class="hist-item" style="cursor:pointer" onclick="carregarHistorico(${h.id})">
       <div class="hist-left">
         <div class="hist-name">📄 ${h.fileName}</div>
         <div class="hist-meta">${h.data}</div>
@@ -1330,6 +1341,7 @@ function renderHistorico() {
         <div class="hist-stat"><div class="hist-stat-val green">${h.elegiveis}</div><div class="hist-stat-label">Eleg</div></div>
         <div class="hist-stat"><div class="hist-stat-val gold">R$ ${fmtMoney(h.vlrContrato)}</div><div class="hist-stat-label">Vlr Cont</div></div>
         <div class="hist-stat"><div class="hist-stat-val green">R$ ${fmtMoney(h.troco)}</div><div class="hist-stat-label">Troco</div></div>
+        <button class="btn-carregar" onclick="event.stopPropagation();carregarHistorico(${h.id})">▶ Carregar</button>
       </div>
     </div>
   `).join('');
