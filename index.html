@@ -1304,155 +1304,139 @@ function filtrarElegiveis(){pagEleg=1;renderElegiveis();}
 // RMC/RCC XML BUILDER
 // ═══════════════════════════════════════════════════════════
 
+const RMC_BANK_MAP={
+  '318':'BMG','623':'PAN','707':'DAYCOVAL','33':'SANTANDER',
+  '465':'QUERO+','389':'MERCANTIL DO BRASIL','934':'BANCO CETELEM',
+  '237':'BRADESCO','935':'FACTA','121':'AGIBANK','104':'CAIXA ECONÔMICA',
+  '41':'BANRISUL','752':'BANCO DO NORDESTE','243':'BANCO MASTER',
+  '903':'BANCO DO BRASIL','999':'DIVERSOS','643':'PINE','422':'SAFRA',
+  '908':'PORTOCRED','254':'PARANÁ BANCO','79':'ORIGINAL','329':'QI TECH',
+  '626':'C6','1':'BANCO DO BRASIL','29':'ITAU','341':'ITAU','81':'BRB',
+  '386':'NU FINANCEIRA','330':'PARATI','359':'ZEMA'
+};
+function getRmcBankName(code){
+  return RMC_BANK_MAP[String(code||'').trim()]||('Banco '+String(code||''));
+}
+
 function buildRmcRccXml() {
   const data=rawSheetData;
   const headers=rawHeaders;
-  if(!data||!headers||data.length<2)return'';
+  if(!data||!headers||data.length<2) return null;
 
-  const s=v=>(v===null||v===undefined)?'':String(v);
-  const esc=v=>s(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const sv=v=>{
+    if(v===null||v===undefined) return '';
+    const str=String(v);
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
 
-  const rmcCol=headers.findIndex(h=>String(h||'').trim()==='Codigo RMC');
-  const rccCol=headers.findIndex(h=>String(h||'').trim()==='Codigo RCC');
-  const rmcColIdx=rmcCol>=0?rmcCol:38;
-  const rccColIdx=rccCol>=0?rccCol:45;
+  // Find RMC/RCC column indices
+  const rmcColIdx=headers.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+  const rccColIdx=headers.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+  const rmc_i=rmcColIdx>=0?rmcColIdx:38;
+  const rcc_i=rccColIdx>=0?rccColIdx:45;
 
-  // Styles for RMC/RCC sheets
-  const RMC_STYLES=`
-  <Style ss:ID="RH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="RHY"><Font ss:Bold="1" ss:Color="#333333" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFD966" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="RT"><Font ss:FontName="Arial" ss:Size="8"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
-  <Style ss:ID="RTg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
-  <Style ss:ID="RTY"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFFDE7" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
-  <Style ss:ID="RTYg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFF9C4" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
-  <Style ss:ID="RTOT"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="RN"><Font ss:FontName="Arial" ss:Size="8"/><NumberFormat ss:Format="#,##0"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
-  <Style ss:ID="RNY"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFFDE7" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>`;
-
-  // Build header row XML for Base sheet (all 190 cols)
-  function buildHeaderRow(styleId='RH') {
-    return '<Row ss:Height="22">\n'+
-      headers.map(h=>`  <Cell ss:StyleID="${styleId}"><Data ss:Type="String">${esc(s(h))}</Data></Cell>`).join('\n')+
-      '\n</Row>';
-  }
-
-  // Build a data row
-  function buildDataRow(row, idx) {
-    const g=idx%2===1?'g':'';
-    return '<Row>\n'+
-      row.map(v=>`  <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${esc(s(v))}</Data></Cell>`).join('\n')+
-      '\n</Row>';
-  }
-
-  // Build a worksheet with specific row indices
-  function buildWs(name, rowIndices) {
-    let xml=`<Worksheet ss:Name="${esc(name)}">\n<Table ss:DefaultRowHeight="16">\n`;
-    xml+=buildHeaderRow()+'\n';
-    rowIndices.forEach((ri,i)=>{
-      xml+=buildDataRow(data[ri],i)+'\n';
-    });
-    xml+=`</Table>\n</Worksheet>`;
-    return xml;
-  }
-
-  // Classify all rows
-  const rmcBMG=[], rmcPAN=[], rmcDAY=[];
-  const rccBMG=[], rccPAN=[], rccDAY=[];
-  const semRMC=[], semRCC=[];
-  // For resumo
+  // Classify rows
+  const rmcBMG=[], rmcPAN=[], rmcDAY=[], semRMC=[];
+  const rccBMG=[], rccPAN=[], rccDAY=[], semRCC=[];
   const rmcCount={}, rccCount={};
-  let totalSemRMC=0, totalSemRCC=0;
 
   for(let r=1;r<data.length;r++){
     const row=data[r];
-    if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
-    const rmc=String(row[rmcColIdx]||'').trim();
-    const rcc=String(row[rccColIdx]||'').trim();
+    if(!row||(!row[0]&&!row[1]&&!row[2])) continue;
+    const rmc=String(row[rmc_i]||'').trim();
+    const rcc=String(row[rcc_i]||'').trim();
 
-    // RMC
     if(rmc&&rmc!=='null'&&rmc!=='undefined'){
       rmcCount[rmc]=(rmcCount[rmc]||0)+1;
       if(rmc==='318') rmcBMG.push(r);
       else if(rmc==='623') rmcPAN.push(r);
       else if(rmc==='707') rmcDAY.push(r);
-    } else { semRMC.push(r); totalSemRMC++; }
+    } else { semRMC.push(r); }
 
-    // RCC
     if(rcc&&rcc!=='null'&&rcc!=='undefined'){
       rccCount[rcc]=(rccCount[rcc]||0)+1;
       if(rcc==='318') rccBMG.push(r);
       else if(rcc==='623') rccPAN.push(r);
       else if(rcc==='707') rccDAY.push(r);
-    } else { semRCC.push(r); totalSemRCC++; }
+    } else { semRCC.push(r); }
   }
 
-  // ── BUILD RESUMO ────────────────────────────────────────────────────────
-  // Merge all bank codes
-  const allBanks=new Set([...Object.keys(rmcCount),...Object.keys(rccCount)]);
-  const bankRows=Array.from(allBanks).map(code=>({
-    code,
-    name:getRmcBankName(code),
-    rmc:rmcCount[code]||0,
-    rcc:rccCount[code]||0
-  })).sort((a,b)=>b.rmc-a.rmc);
+  // Header style
+  const HH=`<Cell ss:StyleID="RH"><Data ss:Type="String">`;
+  const HE=`</Data></Cell>`;
 
-  const highlighted=new Set(['318','623','707']);
-  let wsResumo=`<Worksheet ss:Name="Resumo">\n<Table ss:DefaultRowHeight="18">\n`;
-  wsResumo+=`<Column ss:Width="70"/><Column ss:Width="150"/><Column ss:Width="90"/><Column ss:Width="90"/><Column ss:Width="100"/><Column ss:Width="100"/>\n`;
-  wsResumo+=`<Row ss:Height="24">
-  <Cell ss:StyleID="RH"><Data ss:Type="String">Código</Data></Cell>
-  <Cell ss:StyleID="RH"><Data ss:Type="String">Nome do Banco</Data></Cell>
-  <Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF RMC</Data></Cell>
-  <Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF RCC</Data></Cell>
-  <Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF SEM RMC</Data></Cell>
-  <Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF SEM RCC</Data></Cell>
-</Row>\n`;
+  // Build header row
+  const hdrRow='<Row ss:Height="22">'+headers.map(h=>HH+sv(h)+HE).join('')+'</Row>';
 
-  bankRows.forEach((b,i)=>{
-    const hl=highlighted.has(b.code);
-    const ts=hl?(i%2===0?'RTY':'RTYg'):(i%2===0?'RT':'RTg');
-    const ns=hl?(i%2===0?'RNY':'RNY'):(i%2===0?'RN':'RN');
-    const semRmcVal=i===0?totalSemRMC:'';
-    const semRccVal=i===0?totalSemRCC:'';
-    wsResumo+=`<Row>
-  <Cell ss:StyleID="${ts}"><Data ss:Type="String">${esc(b.code)}</Data></Cell>
-  <Cell ss:StyleID="${ts}"><Data ss:Type="String">${esc(b.name)}</Data></Cell>
-  <Cell ss:StyleID="${ns}"><Data ss:Type="Number">${b.rmc}</Data></Cell>
-  <Cell ss:StyleID="${ns}"><Data ss:Type="Number">${b.rcc}</Data></Cell>
-  <Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?totalSemRMC:''}</Data></Cell>
-  <Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?totalSemRCC:''}</Data></Cell>
-</Row>\n`;
-  });
-  // Total row
-  const totRMC=Object.values(rmcCount).reduce((a,b)=>a+b,0);
-  const totRCC=Object.values(rccCount).reduce((a,b)=>a+b,0);
-  wsResumo+=`<Row>
-  <Cell ss:StyleID="RTOT"><Data ss:Type="String">TOTAL</Data></Cell>
-  <Cell ss:StyleID="RTOT"><Data ss:Type="String"></Data></Cell>
-  <Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totRMC}</Data></Cell>
-  <Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totRCC}</Data></Cell>
-  <Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totalSemRMC}</Data></Cell>
-  <Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totalSemRCC}</Data></Cell>
-</Row>`;
-  wsResumo+=`\n</Table>\n</Worksheet>`;
+  // Build a data row (efficient array-based)
+  function dataRow(row,i){
+    const g=i%2?'g':'';
+    return '<Row>'+row.map(v=>`<Cell ss:StyleID="RT${g}"><Data ss:Type="String">${sv(v)}</Data></Cell>`).join('')+'</Row>';
+  }
 
-  // ── BASE SHEET (all rows all cols) ──────────────────────────────────────
-  const allRows=[];
+  // Build worksheet from row index array
+  function buildWs(name, rowIdxArr){
+    const parts=['<Worksheet ss:Name="'+sv(name)+'"><Table ss:DefaultRowHeight="16">',hdrRow];
+    rowIdxArr.forEach((ri,i)=>parts.push(dataRow(data[ri],i)));
+    parts.push('</Table></Worksheet>');
+    return parts.join('\n');
+  }
+
+  // Build BASE sheet (all rows)
+  const allIdx=[];
   for(let r=1;r<data.length;r++){
-    if(data[r]&&(data[r][0]||data[r][1]||data[r][2]))allRows.push(r);
+    if(data[r]&&(data[r][0]||data[r][1]||data[r][2])) allIdx.push(r);
   }
-  const wsBase=buildWs('Base',allRows);
-  const wsRmcBMG=buildWs('RMC BMG',rmcBMG);
-  const wsRmcPAN=buildWs('RMC PAN',rmcPAN);
-  const wsRmcDAY=buildWs('RMC DAYCOVAL',rmcDAY);
-  const wsRccBMG=buildWs('RCC BMG',rccBMG);
-  const wsRccPAN=buildWs('RCC PAN',rccPAN);
-  const wsRccDAY=buildWs('RCC DAYCOVAL',rccDAY);
-  const wsSemRMC=buildWs('SEM RMC',semRMC);
-  const wsSemRCC=buildWs('SEM RCC',semRCC);
 
-  return {styles:RMC_STYLES, sheets:[wsBase,wsRmcBMG,wsRmcPAN,wsRmcDAY,wsRccBMG,wsRccPAN,wsRccDAY,wsSemRMC,wsSemRCC,wsResumo]};
+  // Build RESUMO
+  const allBanks=new Set([...Object.keys(rmcCount),...Object.keys(rccCount)]);
+  const bankRows=Array.from(allBanks)
+    .map(c=>({c,n:getRmcBankName(c),rmc:rmcCount[c]||0,rcc:rccCount[c]||0}))
+    .sort((a,b)=>b.rmc-a.rmc);
+  const hl=new Set(['318','623','707']);
+  const totRMC=Object.values(rmcCount).reduce((s,v)=>s+v,0);
+  const totRCC=Object.values(rccCount).reduce((s,v)=>s+v,0);
+  const semRMCtot=semRMC.length, semRCCtot=semRCC.length;
+
+  let rsm=['<Worksheet ss:Name="Resumo"><Table ss:DefaultRowHeight="18">',
+    '<Column ss:Width="70"/><Column ss:Width="150"/><Column ss:Width="90"/><Column ss:Width="90"/><Column ss:Width="100"/><Column ss:Width="100"/>',
+    '<Row ss:Height="24"><Cell ss:StyleID="RH"><Data ss:Type="String">Código</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="String">Nome do Banco</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF RMC</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF RCC</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF SEM RMC</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="String">Total CPF SEM RCC</Data></Cell></Row>'];
+  bankRows.forEach((b,i)=>{
+    const y=hl.has(b.c); const g2=i%2?'g':'';
+    const ts=y?(i%2?'RTYg':'RTY'):'RT'+g2;
+    const ns=y?'RNY':'RN';
+    rsm.push(`<Row><Cell ss:StyleID="${ts}"><Data ss:Type="String">${sv(b.c)}</Data></Cell><Cell ss:StyleID="${ts}"><Data ss:Type="String">${sv(b.n)}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${b.rmc}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${b.rcc}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRMCtot:''}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRCCtot:''}</Data></Cell></Row>`);
+  });
+  rsm.push(`<Row><Cell ss:StyleID="RTOT"><Data ss:Type="String">TOTAL</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totRMC}</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totRCC}</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${semRMCtot}</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${semRCCtot}</Data></Cell></Row>`);
+  rsm.push('</Table></Worksheet>');
+
+  const STYLES=`
+  <Style ss:ID="RH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="RTY"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFFDE7" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTYg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFF9C4" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RT"><Font ss:FontName="Arial" ss:Size="8"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RN"><Font ss:FontName="Arial" ss:Size="8"/><NumberFormat ss:Format="#,##0"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RNY"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFFDE7" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTOT"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>`;
+
+  return {
+    styles: STYLES,
+    sheets: [
+      buildWs('Base', allIdx),
+      buildWs('RMC BMG', rmcBMG),
+      buildWs('RMC PAN', rmcPAN),
+      buildWs('RMC DAYCOVAL', rmcDAY),
+      buildWs('RCC BMG', rccBMG),
+      buildWs('RCC PAN', rccPAN),
+      buildWs('RCC DAYCOVAL', rccDAY),
+      buildWs('SEM RMC', semRMC),
+      buildWs('SEM RCC', semRCC),
+      rsm.join('\n')
+    ]
+  };
 }
+
 
 function exportarElegiveis() {
   try {
@@ -1733,11 +1717,17 @@ function exportarElegiveis() {
     let rmcStylesXml='';
     let rmcSheetsXml='';
     if(rawSheetData && rawSheetData.length>1){
-      const rmc=buildRmcRccXml();
-      if(rmc){
-        rmcStylesXml=rmc.styles;
-        rmcSheetsXml=rmc.sheets.join('
+      try{
+        document.getElementById('processing-sub').textContent='Processando RMC/RCC...';
+        const rmc=buildRmcRccXml();
+        if(rmc && rmc.styles && rmc.sheets){
+          rmcStylesXml=rmc.styles;
+          rmcSheetsXml=rmc.sheets.join('
 ');
+        }
+      }catch(rmcErr){
+        console.error('RMC/RCC error:',rmcErr);
+        showToast('Aviso: RMC/RCC falhou: '+String(rmcErr.message),'error');
       }
     }
 
