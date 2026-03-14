@@ -1069,7 +1069,7 @@ function renderTabela() {
   filteredAnalise=allResults.filter(r=>{
     if(filtroAnalise==='elegiveis'&&!r.elegivel)return false;
     if(filtroAnalise==='inelegiveis'&&r.elegivel)return false;
-    if(search&&!r.nome.toLowerCase().includes(search)&&!r.cpf.includes(search))return false;
+    if(search&&!r.nome.toLowerCase().includes(search)&&!String(r.cpf).includes(search))return false;
     return true;
   });
 
@@ -1109,7 +1109,7 @@ function renderElegiveis() {
       if(filtroEleg==='nossa'&&!d.includes('nossa'))return false;
       if(filtroEleg==='pmt'&&!d.includes('pmt'))return false;
     }
-    if(search&&!r.nome.toLowerCase().includes(search)&&!r.cpf.includes(search))return false;
+    if(search&&!r.nome.toLowerCase().includes(search)&&!String(r.cpf).includes(search))return false;
     return true;
   });
 
@@ -1260,7 +1260,7 @@ searchCpf.addEventListener('input',()=>{
   const q=searchCpf.value.trim().toLowerCase();
   if(!q||!allResults.length){searchResults.style.display='none';return;}
   const matches=[...new Map(
-    allResults.filter(r=>r.cpf.includes(q)||r.nome.toLowerCase().includes(q))
+    allResults.filter(r=>String(r.cpf).includes(q)||r.nome.toLowerCase().includes(q))
     .map(r=>[r.cpf,r])
   ).values()].slice(0,8);
   if(!matches.length){searchResults.style.display='none';return;}
