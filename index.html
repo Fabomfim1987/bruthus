@@ -1265,127 +1265,136 @@ function exportarElegiveis() {
     }
     if(!eleg.length){showToast('Nenhum registro para exportar','error');return;}
 
-    // Build XLSX with styled headers using SheetJS
-    const s=v=>v===null||v===undefined?'':String(v);
-    const n=v=>{const f=parseFloat(v);return isNaN(f)?0:f;};
+    const s=v=>(v===null||v===undefined)?'':String(v);
+    const n=v=>{const f=parseFloat(v);return isNaN(f)?0:Math.round(f*100)/100;};
 
-    // Header row
-    const headers=['CPF','Nome','Idade','Espécie','Banco Origem','Contrato',
-      'Parcela','Saldo Devedor','Prazo','Banco Prioritário',
-      'Taxa Aplicada','Coeficiente','Valor Contrato','Troco','Motivo'];
-
-    // Data rows
-    const dataRows=eleg.map(r=>[
-      s(r.cpf), s(r.nome), s(r.idade), s(r.especie), s(r.bancoOrigem),
-      s(r.contrato), n(r.parcela), n(r.saldo), s(r.prazo), s(r.destino),
-      n(r.taxa), n(r.coef), n(r.valorContrato), n(r.troco), s(r.motivo)
-    ]);
-
-    // Create workbook
-    const wb=XLSX.utils.book_new();
-
-    // Sheet 1: Elegíveis
-    const wsData=[headers,...dataRows];
-    const ws=XLSX.utils.aoa_to_sheet(wsData);
-
-    // Column widths
-    ws['!cols']=[
-      {wch:16},{wch:36},{wch:10},{wch:42},{wch:28},
-      {wch:22},{wch:10},{wch:14},{wch:12},{wch:20},
-      {wch:12},{wch:12},{wch:14},{wch:12},{wch:50}
-    ];
-
-    // Style header row (row 0)
-    const headerStyle={
-      font:{bold:true,color:{rgb:'FFFFFF'},name:'Arial',sz:10},
-      fill:{fgColor:{rgb:'1F4E79'},patternType:'solid'},
-      alignment:{horizontal:'center',vertical:'center',wrapText:true},
-      border:{
-        top:{style:'thin',color:{rgb:'CCCCCC'}},
-        bottom:{style:'thin',color:{rgb:'CCCCCC'}},
-        left:{style:'thin',color:{rgb:'CCCCCC'}},
-        right:{style:'thin',color:{rgb:'CCCCCC'}}
-      }
+    // Build XML SpreadsheetML - opens perfectly in Excel with formatting
+    const bkgColor=(dest)=>{
+      const d=(dest||'').toLowerCase();
+      if(d.includes('finanto'))return 'FFFFF2CC';
+      if(d.includes('brb'))return 'FFDEEAF1';
+      if(d.includes('digio'))return 'FFE2EFDA';
+      if(d.includes('nossa'))return 'FFF4CCFF';
+      if(d.includes('pmt'))return 'FFFCE4D6';
+      return 'FFFFFFFF';
     };
 
-    // Apply header styles
-    headers.forEach((h,i)=>{
-      const cell=XLSX.utils.encode_cell({r:0,c:i});
-      if(!ws[cell])ws[cell]={v:h,t:'s'};
-      ws[cell].s=headerStyle;
-    });
+    let xml=`<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:x="urn:schemas-microsoft-com:office:excel">
+<Styles>
+  <Style ss:ID="header">
+    <Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/>
+    <Interior ss:Color="#1F4E79" ss:Pattern="Solid"/>
+    <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+    <Borders>
+      <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/>
+    </Borders>
+  </Style>
+  <Style ss:ID="money">
+    <Font ss:FontName="Arial" ss:Size="9"/>
+    <NumberFormat ss:Format="#,##0.00"/>
+    <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="pct">
+    <Font ss:FontName="Arial" ss:Size="9"/>
+    <NumberFormat ss:Format="0.00"/>
+    <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="coef">
+    <Font ss:FontName="Arial" ss:Size="9"/>
+    <NumberFormat ss:Format="0.00000"/>
+    <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="normal">
+    <Font ss:FontName="Arial" ss:Size="9"/>
+    <Alignment ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="finanto"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
+  <Style ss:ID="finanto_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
+  <Style ss:ID="finanto_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+  <Style ss:ID="brb"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
+  <Style ss:ID="brb_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
+  <Style ss:ID="brb_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+  <Style ss:ID="digio"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
+  <Style ss:ID="digio_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
+  <Style ss:ID="digio_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+  <Style ss:ID="nossa"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
+  <Style ss:ID="nossa_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
+  <Style ss:ID="nossa_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+  <Style ss:ID="pmt"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
+  <Style ss:ID="pmt_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
+  <Style ss:ID="pmt_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+</Styles>
+<Worksheet ss:Name="Elegiveis">
+<Table ss:DefaultRowHeight="18">
+  <Column ss:Width="80"/><Column ss:Width="180"/><Column ss:Width="50"/>
+  <Column ss:Width="200"/><Column ss:Width="140"/><Column ss:Width="110"/>
+  <Column ss:Width="60"/><Column ss:Width="80"/><Column ss:Width="60"/>
+  <Column ss:Width="100"/><Column ss:Width="55"/><Column ss:Width="60"/>
+  <Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="200"/>
+<Row ss:Height="28">
+  <Cell ss:StyleID="header"><Data ss:Type="String">CPF</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Nome</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Idade</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Espécie</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Banco Origem</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Contrato</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Parcela</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Saldo Devedor</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Prazo</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Banco Prioritário</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Taxa</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Coeficiente</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Valor Contrato</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Troco</Data></Cell>
+  <Cell ss:StyleID="header"><Data ss:Type="String">Motivo</Data></Cell>
+</Row>`;
 
-    // Style data rows
-    dataRows.forEach((row,ri)=>{
-      const destino=s(row[9]).toLowerCase();
-      let rowColor=null;
-      if(destino.includes('finanto'))rowColor='FFF2CC';
-      else if(destino.includes('brb'))rowColor='DEEAF1';
-      else if(destino.includes('digio'))rowColor='E2EFDA';
-      else if(destino.includes('nossa'))rowColor='F4CCFF';
-      else if(destino.includes('pmt'))rowColor='FCE4D6';
+    const esc=v=>s(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-      row.forEach((val,ci)=>{
-        const cell=XLSX.utils.encode_cell({r:ri+1,c:ci});
-        if(!ws[cell])return;
-        const cellStyle={
-          font:{name:'Arial',sz:9},
-          border:{
-            top:{style:'thin',color:{rgb:'DDDDDD'}},
-            bottom:{style:'thin',color:{rgb:'DDDDDD'}},
-            left:{style:'thin',color:{rgb:'DDDDDD'}},
-            right:{style:'thin',color:{rgb:'DDDDDD'}}
-          },
-          alignment:{vertical:'center'}
-        };
-        if(rowColor){
-          cellStyle.fill={fgColor:{rgb:rowColor},patternType:'solid'};
-        }
-        // Number formats
-        if(ci===6||ci===7||ci===12||ci===13){
-          cellStyle.numFmt='#,##0.00';
-          cellStyle.alignment={...cellStyle.alignment,horizontal:'right'};
-        }
-        if(ci===10){cellStyle.numFmt='0.00';cellStyle.alignment={...cellStyle.alignment,horizontal:'center'};}
-        if(ci===11){cellStyle.numFmt='0.00000';cellStyle.alignment={...cellStyle.alignment,horizontal:'center'};}
-        if(ci===9){cellStyle.alignment={...cellStyle.alignment,horizontal:'center'};}
-        ws[cell].s=cellStyle;
-      });
-    });
-
-    XLSX.utils.book_append_sheet(wb,'Elegíveis',ws);
-
-    // Sheet 2: Resumo
-    const wsResumo=XLSX.utils.aoa_to_sheet([
-      ['BRUTHUS — MOTOR FÊNIX — RESUMO'],
-      [''],
-      ['Total de Elegíveis:', eleg.length],
-      ['Valor Total Contratos:', eleg.reduce((s,r)=>s+n(r.valorContrato),0)],
-      ['Troco Total:', eleg.reduce((s,r)=>s+n(r.troco),0)],
-      [''],
-      ['Banco Destino','Qtd','Vlr Contrato','Troco Total']
-    ]);
-    const byBanco={};
     eleg.forEach(r=>{
-      const b=s(r.destino)||'-';
-      if(!byBanco[b])byBanco[b]={qtd:0,vlr:0,troco:0};
-      byBanco[b].qtd++;
-      byBanco[b].vlr+=n(r.valorContrato);
-      byBanco[b].troco+=n(r.troco);
-    });
-    Object.entries(byBanco).sort((a,b)=>b[1].qtd-a[1].qtd).forEach(([b,v])=>{
-      XLSX.utils.sheet_add_aoa(wsResumo,[[b,v.qtd,v.vlr,v.troco]],{origin:-1});
-    });
-    wsResumo['!cols']=[{wch:24},{wch:10},{wch:18},{wch:16}];
-    XLSX.utils.book_append_sheet(wb,'Resumo',wsResumo);
+      const d=(s(r.destino)||'').toLowerCase();
+      let base='normal';
+      if(d.includes('finanto'))base='finanto';
+      else if(d.includes('brb'))base='brb';
+      else if(d.includes('digio'))base='digio';
+      else if(d.includes('nossa'))base='nossa';
+      else if(d.includes('pmt'))base='pmt';
+      const m=base+'_money', p=base+'_pct';
 
-    // Download
-    const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array',cellStyles:true});
-    const blob=new Blob([wbout],{type:'application/octet-stream'});
+      xml+=`
+<Row>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.cpf)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.nome)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.idade)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.especie)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.bancoOrigem)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.contrato)}</Data></Cell>
+  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.parcela)}</Data></Cell>
+  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.saldo)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.prazo)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.destino)}</Data></Cell>
+  <Cell ss:StyleID="${p}"><Data ss:Type="Number">${n(r.taxa)}</Data></Cell>
+  <Cell ss:StyleID="${p}"><Data ss:Type="Number">${n(r.coef)}</Data></Cell>
+  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.valorContrato)}</Data></Cell>
+  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.troco)}</Data></Cell>
+  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.motivo)}</Data></Cell>
+</Row>`;
+    });
+
+    xml+=`
+</Table>
+</Worksheet>
+</Workbook>`;
+
+    const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download='Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    a.download='Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xls';
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
@@ -1395,6 +1404,7 @@ function exportarElegiveis() {
     showToast('Erro ao exportar: '+String(err.message||err),'error');
   }
 }
+
 
 
 function showCpfModal(cpf) {
