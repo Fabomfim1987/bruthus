@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bruthus — Motor Consignado</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --blue-deep: #0a1628;
+  --blue-dark: #0d1f3c;
+  --blue-mid: #112952;
+  --blue-card: #0f2244;
+  --blue-accent: #1565c0;
+  --blue-bright: #1976d2;
+  --blue-glow: #2196f3;
+  --silver: #c8d8e8;
+  --silver-bright: #e8f0f8;
+  --silver-dim: #7a9ab8;
+  --gold: #f5a623;
+  --green: #00e676;
+  --green-dim: #00c853;
+  --red: #ff5252;
+  --text: #e0ecf8;
+  --text-dim: #7a9ab8;
+  --border: rgba(100,160,220,0.15);
+  --card-bg: rgba(15,34,68,0.9);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Barlow', sans-serif;
+  background: var(--blue-deep);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--blue-dark);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top:0; z-index:100;
+  backdrop-filter: blur(10px);
+}
+.logo {
+  display: flex; align-items: center; gap: 12px;
+}
+.logo-icon {
+  width: 38px; height: 38px;
+}
+.logo-text { line-height:1; }
+.logo-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 22px; font-weight: 800;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #c8d8e8, #ffffff, #90b8d8);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.logo-sub { font-size: 10px; color: var(--silver-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+.header-center {
+  flex:1; max-width:340px; margin:0 auto;
+}
+.search-box {
+  width:100%; background: var(--blue-mid);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px 8px 36px;
+  color: var(--text); font-family: 'Barlow',sans-serif; font-size:14px;
+  outline:none;
+  position:relative;
+}
+.search-wrap { position:relative; }
+.search-wrap::before {
+  content:'🔍'; position:absolute; left:10px; top:50%; transform:translateY(-50%);
+  font-size:13px; z-index:1;
+}
+.header-right { display:flex; align-items:center; gap:12px; }
+.btn-export {
+  background: linear-gradient(135deg, #00c853, #00e676);
+  color: #000; font-weight:700; font-size:13px;
+  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:6px;
+  transition: all .2s;
+}
+.btn-export:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,230,118,.3); }
+.btn-export:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.btn-nova {
+  background: var(--blue-mid); border:1px solid var(--border);
+  color:var(--text); font-weight:600; font-size:13px;
+  padding:8px 16px; border-radius:8px; cursor:pointer;
+  transition: all .2s;
+}
+.btn-nova:hover { background: var(--blue-accent); }
+.file-indicator {
+  font-size:12px; color:var(--silver-dim);
+  max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* ── TABS ── */
+.tabs {
+  background: var(--blue-dark);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex; gap: 4px; align-items: center;
+}
+.tab {
+  padding: 14px 20px; font-size:14px; font-weight:600;
+  color: var(--text-dim); cursor:pointer; border:none; background:none;
+  border-bottom: 3px solid transparent;
+  transition: all .2s; white-space:nowrap;
+  display:flex; align-items:center; gap:8px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--blue-glow); border-bottom-color: var(--blue-glow); }
+.tab-badge {
+  background: var(--blue-accent); color: #fff;
+  font-size:11px; font-weight:700;
+  padding:2px 7px; border-radius:10px;
+  min-width:22px; text-align:center;
+}
+.tab-badge.green { background: var(--green-dim); color:#000; }
+
+/* ── MAIN ── */
+main { padding: 24px; }
+
+/* ── UPLOAD SCREEN ── */
+#screen-upload {
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; min-height:calc(100vh - 120px);
+}
+.upload-area {
+  width: 560px; max-width:100%;
+  border: 2px dashed var(--blue-accent);
+  border-radius: 16px;
+  padding: 60px 40px;
+  text-align: center;
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: all .3s;
+  position: relative;
+}
+.upload-area:hover, .upload-area.drag-over {
+  border-color: var(--blue-glow);
+  background: rgba(21,101,192,.15);
+  box-shadow: 0 0 40px rgba(33,150,243,.2);
+}
+.upload-icon {
+  width:64px; height:64px; margin:0 auto 20px;
+}
+.upload-title { font-size:22px; font-weight:700; margin-bottom:8px; }
+.upload-sub { color:var(--text-dim); font-size:14px; margin-bottom:28px; }
+.btn-upload {
+  background: linear-gradient(135deg, var(--blue-accent), var(--blue-glow));
+  color:#fff; font-weight:700; font-size:15px;
+  padding:14px 40px; border-radius:10px; border:none; cursor:pointer;
+  transition: all .2s; display:inline-block;
+}
+.btn-upload:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(33,150,243,.4); }
+.upload-formats { margin-top:12px; font-size:12px; color:var(--text-dim); }
+#file-input { display:none; }
+
+/* histrico */
+.historico { margin-top:32px; width:560px; max-width:100%; }
+.historico h3 { font-size:14px; font-weight:700; color:var(--silver-dim); margin-bottom:12px; letter-spacing:1px; text-transform:uppercase; display:flex; align-items:center; gap:8px; }
+.hist-item {
+  background: var(--card-bg); border:1px solid var(--border);
+  border-radius:10px; padding:14px 16px;
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:8px; transition:all .2s;
+}
+.hist-item:hover { border-color: var(--blue-accent); }
+.hist-left {}
+.hist-name { font-size:14px; font-weight:600; }
+.hist-meta { font-size:12px; color:var(--text-dim); margin-top:2px; }
+.hist-stats { display:flex; gap:16px; align-items:center; }
+.hist-stat { text-align:right; }
+.hist-stat-val { font-size:13px; font-weight:700; }
+.hist-stat-val.green { color:var(--green); }
+.hist-stat-val.gold { color:var(--gold); }
+.hist-stat-label { font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
+.btn-carregar {
+  background:var(--blue-accent); color:#fff; font-weight:600; font-size:12px;
+  padding:6px 14px; border-radius:6px; border:none; cursor:pointer;
+  transition:all .2s; white-space:nowrap;
+}
+.btn-carregar:hover { background:var(--blue-bright); }
+
+/* ── DASHBOARD ── */
+#screen-main { display:none; }
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(6,1fr); gap:12px;
+  margin-bottom:20px;
+}
+.kpi-card {
+  background: var(--card-bg); border:1px solid var(--border);
+  border-radius:12px; padding:18px 16px;
+  transition: all .2s;
+}
+.kpi-card:hover { border-color: rgba(100,160,220,.3); transform:translateY(-1px); }
+.kpi-label { font-size:10px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+.kpi-value { font-size:28px; font-weight:800; font-family:'Barlow Condensed',sans-serif; line-height:1; }
+.kpi-value.blue { color:var(--blue-glow); }
+.kpi-value.green { color:var(--green); }
+.kpi-value.gold { color:var(--gold); }
+.kpi-value.silver { color:var(--silver); }
+.kpi-value.red { color:var(--red); }
+.kpi-sub { font-size:11px; color:var(--text-dim); margin-top:4px; }
+
+.dash-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap:16px;
+}
+.dash-card {
+  background: var(--card-bg); border:1px solid var(--border);
+  border-radius:12px; padding:20px;
+}
+.dash-card-title {
+  font-size:11px; font-weight:700; color:var(--text-dim);
+  text-transform:uppercase; letter-spacing:1px; margin-bottom:16px;
+}
+
+/* banco rows */
+.banco-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 0; border-bottom:1px solid var(--border);
+}
+.banco-row:last-child { border-bottom:none; }
+.banco-name { font-size:14px; font-weight:700; color:var(--blue-glow); }
+.banco-count { font-size:12px; color:var(--text-dim); }
+.banco-vals { text-align:right; }
+.banco-contrato { font-size:13px; font-weight:600; color:var(--silver); }
+.banco-troco { font-size:12px; color:var(--green); }
+
+/* taxa bars */
+.taxa-row { margin-bottom:12px; }
+.taxa-header { display:flex; justify-content:space-between; margin-bottom:4px; }
+.taxa-label { font-size:13px; font-weight:600; }
+.taxa-count { font-size:12px; color:var(--text-dim); }
+.taxa-bar-bg { background:rgba(255,255,255,.08); border-radius:4px; height:6px; }
+.taxa-bar-fill { height:6px; border-radius:4px; background:linear-gradient(90deg,var(--blue-accent),var(--blue-glow)); transition:width .6s ease; }
+
+/* ── ANÁLISE / ELEGÍVEIS ── */
+.filtros {
+  display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
+}
+.filtro-btn {
+  padding:7px 14px; border-radius:20px; border:1px solid var(--border);
+  font-size:12px; font-weight:600; cursor:pointer;
+  background:var(--card-bg); color:var(--text-dim);
+  transition:all .2s; display:flex; align-items:center; gap:6px;
+}
+.filtro-btn:hover { border-color:var(--blue-accent); color:var(--text); }
+.filtro-btn.active { background:var(--blue-accent); border-color:var(--blue-accent); color:#fff; }
+.filtro-btn .fbadge {
+  background:rgba(255,255,255,.2); border-radius:10px;
+  padding:1px 6px; font-size:11px;
+}
+.search-filter {
+  flex:1; max-width:300px;
+  background:var(--card-bg); border:1px solid var(--border);
+  border-radius:8px; padding:8px 14px;
+  color:var(--text); font-family:'Barlow',sans-serif; font-size:13px;
+  outline:none;
+}
+.search-filter:focus { border-color:var(--blue-accent); }
+
+/* table */
+.table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead tr { background:rgba(21,101,192,.3); }
+th {
+  padding:11px 14px; text-align:left;
+  font-size:10px; font-weight:700; color:var(--silver-dim);
+  text-transform:uppercase; letter-spacing:.8px; white-space:nowrap;
+  border-bottom:1px solid var(--border); cursor:pointer;
+}
+th:hover { color:var(--text); }
+tbody tr {
+  border-bottom:1px solid rgba(100,160,220,.06);
+  transition:background .15s;
+}
+tbody tr:hover { background:rgba(21,101,192,.12); }
+td { padding:10px 14px; white-space:nowrap; }
+.td-check { width:36px; }
+.td-name { max-width:180px; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
+.td-cpf { color:var(--text-dim); font-size:12px; }
+.badge-banco {
+  background:var(--blue-mid); color:var(--blue-glow);
+  padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700;
+}
+.badge-destino {
+  padding:3px 10px; border-radius:6px; font-size:11px; font-weight:700;
+}
+.badge-destino.finanto { background:rgba(245,166,35,.15); color:var(--gold); }
+.badge-destino.brb { background:rgba(33,150,243,.15); color:var(--blue-glow); }
+.badge-destino.digio { background:rgba(0,230,118,.15); color:var(--green); }
+.badge-destino.nossa { background:rgba(156,39,176,.2); color:#ce93d8; }
+.badge-destino.pmt { background:rgba(255,82,82,.15); color:var(--red); }
+.td-money { font-weight:600; color:var(--silver); }
+.td-troco { font-weight:700; color:var(--green); }
+.td-taxa { color:var(--gold); font-weight:600; }
+.elegivel-sim { color:var(--green); font-weight:700; }
+.elegivel-nao { color:var(--red); font-weight:600; }
+.td-motivo { max-width:200px; overflow:hidden; text-overflow:ellipsis; color:var(--text-dim); font-size:11px; }
+
+/* processing */
+#processing-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(10,22,40,.92); z-index:200;
+  flex-direction:column; align-items:center; justify-content:center; gap:20px;
+}
+#processing-overlay.show { display:flex; }
+.spinner {
+  width:48px; height:48px; border:3px solid var(--border);
+  border-top-color:var(--blue-glow); border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.processing-text { font-size:18px; font-weight:700; color:var(--silver); }
+.processing-sub { font-size:13px; color:var(--text-dim); }
+
+/* cpf modal */
+#cpf-modal {
+  display:none; position:fixed; inset:0;
+  background:rgba(10,22,40,.85); z-index:300;
+  align-items:center; justify-content:center;
+}
+#cpf-modal.show { display:flex; }
+.modal-box {
+  background:var(--blue-dark); border:1px solid var(--border);
+  border-radius:16px; padding:28px; width:560px; max-width:95vw;
+  max-height:80vh; overflow-y:auto;
+}
+.modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.modal-title { font-size:18px; font-weight:800; }
+.modal-close { background:none; border:none; color:var(--text-dim); font-size:22px; cursor:pointer; }
+.modal-close:hover { color:var(--text); }
+.modal-cpf-info { background:var(--card-bg); border-radius:10px; padding:14px; margin-bottom:16px; }
+.modal-cpf-name { font-size:16px; font-weight:700; }
+.modal-cpf-meta { font-size:12px; color:var(--text-dim); margin-top:4px; }
+.modal-contract {
+  background:var(--blue-mid); border-radius:8px; padding:12px 14px;
+  margin-bottom:8px; display:grid; grid-template-columns:1fr 1fr 1fr;
+  gap:10px;
+}
+.mc-field label { font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
+.mc-field value { display:block; font-size:14px; font-weight:700; margin-top:2px; }
+
+/* search results */
+.search-results {
+  position:absolute; top:100%; left:0; right:0;
+  background:var(--blue-dark); border:1px solid var(--border);
+  border-radius:8px; z-index:200; max-height:300px; overflow-y:auto;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
+}
+.search-result-item {
+  padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--border);
+  transition:background .15s;
+}
+.search-result-item:hover { background:var(--blue-mid); }
+.sri-name { font-size:13px; font-weight:600; }
+.sri-meta { font-size:11px; color:var(--text-dim); }
+
+.empty-state {
+  text-align:center; padding:60px 20px; color:var(--text-dim);
+}
+.empty-icon { font-size:48px; margin-bottom:12px; }
+.empty-text { font-size:16px; font-weight:600; }
+.empty-sub { font-size:13px; margin-top:6px; }
+
+/* pagination */
+.pagination { display:flex; gap:6px; align-items:center; justify-content:center; margin-top:16px; }
+.page-btn {
+  width:32px; height:32px; border-radius:6px; border:1px solid var(--border);
+  background:var(--card-bg); color:var(--text-dim); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:13px;
+  transition:all .15s;
+}
+.page-btn:hover { border-color:var(--blue-accent); color:var(--text); }
+.page-btn.active { background:var(--blue-accent); border-color:var(--blue-accent); color:#fff; }
+.page-info { font-size:12px; color:var(--text-dim); padding:0 8px; }
+
+/* toast */
+.toast {
+  position:fixed; bottom:24px; right:24px; z-index:400;
+  background:var(--blue-mid); border:1px solid var(--blue-accent);
+  border-radius:10px; padding:14px 20px;
+  font-size:14px; font-weight:600;
+  transform:translateY(100px); opacity:0;
+  transition:all .3s;
+}
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.success { border-color:var(--green); }
+.toast.error { border-color:var(--red); }
+
+@media(max-width:900px) {
+  .kpi-grid { grid-template-columns:repeat(3,1fr); }
+  .dash-grid { grid-template-columns:1fr; }
+}
+@media(max-width:600px) {
+  .kpi-grid { grid-template-columns:repeat(2,1fr); }
+  header { padding:0 12px; }
+  main { padding:12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <svg class="logo-icon" viewBox="0 0 38 38" fill="none">
+      <!-- Bulldog silhouette simplified -->
+      <circle cx="19" cy="19" r="18" fill="rgba(21,101,192,0.3)" stroke="rgba(100,160,220,0.4)" stroke-width="1"/>
+      <text x="19" y="25" text-anchor="middle" font-size="20" fill="url(#sg)">🐶</text>
+      <defs>
+        <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#c8d8e8"/>
+          <stop offset="100%" stop-color="#ffffff"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="logo-text">
+      <div class="logo-name">BRUTHUS</div>
+      <div class="logo-sub">Motor Consignado</div>
+    </div>
+  </div>
+
+  <div class="header-center">
+    <div class="search-wrap" style="position:relative;">
+      <input class="search-box" id="search-cpf" type="text" placeholder="Buscar CPF ou Nome..." autocomplete="off"/>
+      <div class="search-results" id="search-results" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <span class="file-indicator" id="file-indicator"></span>
+    <button class="btn-export" id="btn-export" disabled onclick="exportarElegiveis()">
+      ⬇ Exportar
+    </button>
+    <button class="btn-nova" onclick="novaBase()">Nova Base</button>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs" id="tabs" style="display:none;">
+  <button class="tab active" onclick="setTab('dashboard')" id="tab-dashboard">Dashboard</button>
+  <button class="tab" onclick="setTab('analise')" id="tab-analise">
+    Análise <span class="tab-badge" id="badge-analise">0</span>
+  </button>
+  <button class="tab" onclick="setTab('elegiveis')" id="tab-elegiveis">
+    ✅ Elegíveis <span class="tab-badge green" id="badge-elegiveis">0</span>
+  </button>
+</div>
+
+<!-- MAIN -->
+<main>
+
+  <!-- UPLOAD SCREEN -->
+  <div id="screen-upload">
+    <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+      <svg class="upload-icon" viewBox="0 0 64 64" fill="none">
+        <rect width="64" height="64" rx="12" fill="rgba(21,101,192,0.2)"/>
+        <path d="M32 42V22M22 32l10-10 10 10" stroke="#2196f3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18 46h28" stroke="#2196f3" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="8" y="8" width="48" height="48" rx="8" stroke="rgba(33,150,243,0.3)" stroke-width="1.5"/>
+      </svg>
+      <div class="upload-title">Consulta em Lote</div>
+      <div class="upload-sub">Arraste a base completa aqui ou clique para selecionar</div>
+      <button class="btn-upload" onclick="event.stopPropagation();document.getElementById('file-input').click()">
+        Selecionar Arquivo
+      </button>
+      <div class="upload-formats">.xlsx &nbsp;.xls &nbsp;.csv</div>
+      <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="handleFile(this.files[0])"/>
+    </div>
+
+    <div class="historico" id="historico-section">
+      <h3>📁 Histórico</h3>
+      <div id="historico-list"></div>
+    </div>
+  </div>
+
+  <!-- MAIN SCREEN -->
+  <div id="screen-main">
+
+    <!-- DASHBOARD -->
+    <div id="tab-content-dashboard">
+      <div class="kpi-grid" id="kpi-grid"></div>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-title">Portabilidade por Banco Destino</div>
+          <div id="banco-list"></div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">Distribuição de Taxas</div>
+          <div id="taxa-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANÁLISE -->
+    <div id="tab-content-analise" style="display:none;">
+      <div class="filtros">
+        <input class="search-filter" id="search-analise" placeholder="🔍  Buscar nome ou CPF..." oninput="filtrarTabela()"/>
+        <button class="filtro-btn active" onclick="setFiltroAnalise('todos',this)" id="f-todos">
+          Todos <span class="fbadge" id="fb-todos">0</span>
+        </button>
+        <button class="filtro-btn" onclick="setFiltroAnalise('elegiveis',this)" id="f-elegiveis">
+          ✅ Elegíveis <span class="fbadge" id="fb-elegiveis">0</span>
+        </button>
+        <button class="filtro-btn" onclick="setFiltroAnalise('inelegiveis',this)" id="f-inelegiveis">
+          ❌ Inelegíveis <span class="fbadge" id="fb-inelegiveis">0</span>
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-analise">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>CPF</th>
+              <th>Idade</th>
+              <th>Banco</th>
+              <th>Parcela</th>
+              <th>Saldo</th>
+              <th>Prazo</th>
+              <th>Destino</th>
+              <th>Vlr Contrato</th>
+              <th>Troco</th>
+              <th>Taxa</th>
+              <th>Elegível</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-analise"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pag-analise"></div>
+    </div>
+
+    <!-- ELEGÍVEIS -->
+    <div id="tab-content-elegiveis" style="display:none;">
+      <div class="filtros">
+        <input class="search-filter" id="search-eleg" placeholder="🔍  Buscar nome ou CPF..." oninput="filtrarElegiveis()"/>
+        <button class="filtro-btn active" onclick="setFiltroEleg('todos',this)">
+          Todos <span class="fbadge" id="fbe-todos">0</span>
+        </button>
+        <button class="filtro-btn" onclick="setFiltroEleg('finanto',this)">
+          Finanto <span class="fbadge" id="fbe-finanto">0</span>
+        </button>
+        <button class="filtro-btn" onclick="setFiltroEleg('brb',this)">
+          BRB <span class="fbadge" id="fbe-brb">0</span>
+        </button>
+        <button class="filtro-btn" onclick="setFiltroEleg('digio',this)">
+          Digio <span class="fbadge" id="fbe-digio">0</span>
+        </button>
+        <button class="filtro-btn" onclick="setFiltroEleg('nossa',this)">
+          N. Fintech <span class="fbadge" id="fbe-nossa">0</span>
+        </button>
+        <button class="filtro-btn" onclick="setFiltroEleg('pmt',this)">
+          PMT Baixa <span class="fbadge" id="fbe-pmt">0</span>
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-elegiveis">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>CPF</th>
+              <th>Idade</th>
+              <th>Espécie</th>
+              <th>Banco Origem</th>
+              <th>Parcela</th>
+              <th>Saldo</th>
+              <th>Prazo</th>
+              <th>Destino</th>
+              <th>Vlr Contrato</th>
+              <th>Troco</th>
+              <th>Taxa</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-elegiveis"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pag-elegiveis"></div>
+    </div>
+
+  </div>
+</main>
+
+<!-- PROCESSING OVERLAY -->
+<div id="processing-overlay">
+  <div class="spinner"></div>
+  <div class="processing-text">Processando base...</div>
+  <div class="processing-sub" id="processing-sub">Aplicando Motor Fênix</div>
+</div>
+
+<!-- CPF MODAL -->
+<div id="cpf-modal" onclick="if(event.target===this)closeCpfModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Detalhes do Cliente</div>
+      <button class="modal-close" onclick="closeCpfModal()">✕</button>
+    </div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// MOTOR FÊNIX — REGRAS COMPLETAS
+// ═══════════════════════════════════════════════════════════
+
+const BANK_MAP = {
+  1:'Banco do Brasil',12:'Inbursa',29:'Itau',33:'Santander',
+  41:'Banrisul',69:'BPN Brasil',77:'Inter',79:'Banco Original',
+  81:'BRB',104:'Caixa Economica Federal',121:'Agibank',237:'Bradesco',
+  254:'Parana Banco',318:'BMG',329:'QI Sociedade de Credito',
+  330:'Parati',341:'Itau',359:'Zema',386:'Nu Financeira',
+  389:'Mercantil',402:'COBUCCIO',422:'Safra',611:'Banco Paulista',
+  623:'Pan',626:'C6',643:'Pine',707:'Daycoval',748:'Sicredi',
+  752:'BNP Paribas',753:'NBC Bank',756:'Sicoob',
+  902:'Facta',903:'Facta',905:'Facta',908:'Facta',
+  921:'Alfa',925:'Alfa',926:'Alfa',932:'Alfa',
+  935:'Facta',954:'Facta'
+};
+
+const COEF_TABLE = [
+  [1.85,0.02299],[1.80,0.02451],[1.78,0.02250],[1.75,0.021985],
+  [1.72,0.02175],[1.70,0.021604],[1.68,0.02145],[1.66,0.02130]
+];
+
+const FINANTO_NAO_PORTA = new Set(['Inbursa','QI Sociedade de Credito','Safra','BNP Paribas','Pine','Alfa','Facta','C6','PicPay']);
+const FINANTO_ESPECIES_BLOQ = new Set([32,92]);
+const FINANTO_12_PAGAS = new Set(['Pan','Santander','Parana Banco','Parati','Mercantil','Agibank','Daycoval']);
+
+const BRB_PORTA_1_PAGA = new Set(['QI Sociedade de Credito','Mercantil','Inter','Nu Financeira','Banco do Brasil','Itau','Caixa Economica Federal','Bradesco','Sicoob','Alfa','Santander']);
+const BRB_NAO_PORTA = new Set(['BRB','PicPay','Agibank','C6','Pine']);
+
+const DIGIO_NAO_PORTA = new Set(['Banrisul','Banco do Brasil','Bradesco']);
+
+const NOSSA_NAO_PORTA = new Set(['QI Sociedade de Credito','Pine','NBC Bank','Inbursa','C6']);
+const NOSSA_12_PAGAS = new Set(['Pan','Daycoval']);
+
+function getBankName(code) {
+  if (!code && code !== 0) return 'Desconhecido';
+  return BANK_MAP[parseInt(code)] || `Banco ${code}`;
+}
+
+function normBank(name) {
+  const n = (name||'').toLowerCase();
+  if(n.includes('facta')) return 'Facta';
+  if(n.includes('alfa')) return 'Alfa';
+  if(n.includes('qi')) return 'QI Sociedade de Credito';
+  if(n.includes('bnp')) return 'BNP Paribas';
+  if(n.includes('pine')) return 'Pine';
+  if(n.includes('inbursa')) return 'Inbursa';
+  if(n.includes('c6')) return 'C6';
+  if(n.includes('picpay')) return 'PicPay';
+  if(n.includes('agibank')) return 'Agibank';
+  if(n.includes('brb')) return 'BRB';
+  if(n.includes('banrisul')) return 'Banrisul';
+  if(n.includes('bradesco')) return 'Bradesco';
+  if(n.includes('banco do brasil')) return 'Banco do Brasil';
+  if(n.includes('pan')) return 'Pan';
+  if(n.includes('santander')) return 'Santander';
+  if(n.includes('parana')) return 'Parana Banco';
+  if(n.includes('parati')) return 'Parati';
+  if(n.includes('mercantil')) return 'Mercantil';
+  if(n.includes('daycoval')) return 'Daycoval';
+  if(n.includes('safra')) return 'Safra';
+  if(n.includes('nbc')) return 'NBC Bank';
+  if(n.includes('nu financeira')||n.includes('nu pagamentos')) return 'Nu Financeira';
+  if(n.includes('sicoob')) return 'Sicoob';
+  if(n.includes('sicredi')) return 'Sicredi';
+  if(n.includes('inter')) return 'Inter';
+  if(n.includes('itau')||n.includes('itaú')) return 'Itau';
+  if(n.includes('caixa')) return 'Caixa Economica Federal';
+  return name;
+}
+
+function parsePrazo(s) {
+  if(!s) return [null,null];
+  const str = String(s);
+  const parts = str.split('/');
+  if(parts.length===2) {
+    const rest = parseInt(parts[0].trim());
+    const total = parseInt(parts[1].trim());
+    if(!isNaN(rest)&&!isNaN(total)) return [total-rest, total];
+  }
+  const n = parseInt(str);
+  return [null, isNaN(n)?null:n];
+}
+
+function calcAge(dob) {
+  if(!dob) return [null,null,null];
+  let d;
+  if(dob instanceof Date) d=dob;
+  else { d=new Date(dob); if(isNaN(d)) return [null,null,null]; }
+  const today=new Date();
+  let y=today.getFullYear()-d.getFullYear();
+  let m=today.getMonth()-d.getMonth();
+  let dd=today.getDate()-d.getDate();
+  if(dd<0){m--;dd+=30;}
+  if(m<0){y--;m+=12;}
+  return[y,m,dd];
+}
+
+function ageExceeds(dob,maxY,maxM=0,maxD=0) {
+  const[y,m,d]=calcAge(dob);
+  if(y===null)return true;
+  if(y>maxY)return true;
+  if(y===maxY&&m>maxM)return true;
+  if(y===maxY&&m===maxM&&d>maxD)return true;
+  return false;
+}
+
+function calcTroco(parcela,saldo,startIdx=0,maxTaxa=null) {
+  for(let i=startIdx;i<COEF_TABLE.length;i++){
+    const[taxa,coef]=COEF_TABLE[i];
+    if(maxTaxa!==null&&taxa>maxTaxa)continue;
+    const contrato=parcela/coef;
+    const troco=contrato-saldo;
+    if(troco>0)return{taxa,coef,contrato,troco};
+  }
+  return null;
+}
+
+function getEspecieNum(s) {
+  if(!s)return null;
+  const m=String(s).match(/^(\d+)/);
+  return m?parseInt(m[1]):null;
+}
+
+function runMotor(dob,especieNum,bancoOrigem,contratoNum,parcela,saldo,pagas,total) {
+  const banco=normBank(bancoOrigem);
+  const restantes=(total&&pagas!=null)?(total-pagas):null;
+
+  const pmtOk=(parcela<50&&saldo<2000);
+  const is32=(especieNum===32);
+  const[y,m]=calcAge(dob);
+  const under55=y!==null&&y<55;
+  const redirectNossa=is32&&under55;
+
+  function tryFinanto(){
+    if(FINANTO_ESPECIES_BLOQ.has(especieNum))return[null,`Finanto: espécie ${especieNum} bloqueada`];
+    if(ageExceeds(dob,69,10))return[null,'Finanto: idade > 69a 10m'];
+    if(FINANTO_NAO_PORTA.has(banco))return[null,`Finanto: banco ${banco} não porta`];
+    if(!saldo)return[null,'Finanto: saldo inválido'];
+    if(saldo>=6000){
+      const min12=FINANTO_12_PAGAS.has(banco);
+      const minPagas=min12?12:1;
+      if(pagas===null||pagas<minPagas)return[null,`Finanto: ${banco} exige ${minPagas} paga(s) (${pagas})`];
+      let r=calcTroco(parcela,saldo);
+      if(restantes!=null&&restantes>=80&&restantes<=95){
+        r=calcTroco(parcela,saldo,0,null);
+        if(r&&r.taxa<1.70)return[null,'Finanto: taxa mín 1.70% sem troco'];
+      }
+      if(r&&r.troco>0)return[{banco:'Finanto',...r},null];
+      return[null,'Finanto: sem troco positivo'];
+    } else if(saldo>=2000&&saldo<=5999.99){
+      if(pagas===null||pagas<12)return[null,`Finanto: tabela especial exige 12 pagas (${pagas})`];
+      const coef=0.02451;
+      const contrato=parcela/coef;
+      const troco=contrato-saldo;
+      if(troco>0)return[{banco:'Finanto',taxa:1.80,coef,contrato,troco},null];
+      return[null,'Finanto: sem troco (tabela especial)'];
+    }
+    return[null,`Finanto: saldo insuficiente (${saldo?.toFixed(2)} < 2000)`];
+  }
+
+  function tryBRB(){
+    if(ageExceeds(dob,73))return[null,'BRB: idade > 73a'];
+    if(!saldo||saldo<3000)return[null,`BRB: saldo insuf (${saldo?.toFixed(2)} < 3000)`];
+    if(BRB_NAO_PORTA.has(banco))return[null,`BRB: banco ${banco} não porta`];
+    const minP=BRB_PORTA_1_PAGA.has(banco)?1:12;
+    if(pagas===null||pagas<minP)return[null,`BRB: ${banco} exige ${minP} paga(s) (${pagas})`];
+    const r=calcTroco(parcela,saldo);
+    if(r&&r.troco>0)return[{banco:'BRB',...r},null];
+    return[null,'BRB: sem troco positivo'];
+  }
+
+  function tryDigio(){
+    if(ageExceeds(dob,71,11,29))return[null,'Digio: idade > 71a 11m 29d'];
+    if(!saldo||saldo<4500)return[null,`Digio: saldo insuf (${saldo?.toFixed(2)} < 4500)`];
+    if(DIGIO_NAO_PORTA.has(banco))return[null,`Digio: banco ${banco} não porta`];
+    if(pagas===null||pagas<12)return[null,`Digio: exige 12 pagas (${pagas})`];
+    const r=calcTroco(parcela,saldo);
+    if(r&&r.troco>0)return[{banco:'Digio',...r},null];
+    return[null,'Digio: sem troco positivo'];
+  }
+
+  function tryNossa(){
+    if(!dob)return[null,'N.Fintech: DOB inválido'];
+    const[yy,mm]=calcAge(dob);
+    if(is32&&yy<45)return[null,`N.Fintech: esp32 exige 45a (${yy}a)`];
+    if(yy>=45&&yy<55)return[null,`N.Fintech: faixa 45-55 inelegível (${yy}a ${mm}m)`];
+    const ageF=yy+mm/12;
+    if(ageF<22||ageF>69)return[null,`N.Fintech: idade fora 22-69 (${yy}a)`];
+    if(!saldo||saldo<2900)return[null,`N.Fintech: saldo insuf (${saldo?.toFixed(2)} < 2900)`];
+    if(NOSSA_NAO_PORTA.has(banco))return[null,`N.Fintech: ${banco} não porta`];
+    if(NOSSA_12_PAGAS.has(banco)&&(pagas===null||pagas<12))return[null,`N.Fintech: ${banco} exige 12 pagas (${pagas})`];
+    if(pagas===null||pagas<1)return[null,'N.Fintech: exige 1 paga'];
+    const r=calcTroco(parcela,saldo);
+    if(r&&r.taxa<1.70)return[null,'N.Fintech: taxa mín 1.70% sem troco'];
+    if(r&&r.troco>0)return[{banco:'Nossa Fintech',...r},null];
+    return[null,'N.Fintech: sem troco positivo'];
+  }
+
+  function tryPMT(){
+    if(!pmtOk)return[null,`PMT: parcela=${parcela?.toFixed(2)}/saldo=${saldo?.toFixed(2)}`];
+    const taxa=1.85,coef=0.02299;
+    const contrato=parcela/coef;
+    const troco=contrato-saldo;
+    if(troco>=150)return[{banco:'PMT Baixa',taxa,coef,contrato,troco},null];
+    return[null,`PMT: troco ${troco.toFixed(2)} < 150`];
+  }
+
+  const motivos=[];
+
+  if(redirectNossa){
+    let[r,e]=tryNossa(); if(r)return{...r,elegivel:true,motivo:'Esp32<55→N.Fintech'};
+    motivos.push(e);
+    [r,e]=tryPMT(); if(r)return{...r,elegivel:true,motivo:'Esp32<55→PMT Baixa'};
+    motivos.push(e);
+    return{banco:'-',taxa:null,coef:null,contrato:null,troco:null,elegivel:false,motivo:motivos.join(' | ')};
+  }
+
+  for(const fn of[tryFinanto,tryBRB,tryDigio,tryNossa,tryPMT]){
+    const[r,e]=fn();
+    if(r)return{...r,elegivel:true,motivo:r.banco};
+    motivos.push(e);
+  }
+  return{banco:'-',taxa:null,coef:null,contrato:null,troco:null,elegivel:false,motivo:motivos.join(' | ')};
+}
+
+// ═══════════════════════════════════════════════════════════
+// PROCESSAMENTO DA PLANILHA
+// ═══════════════════════════════════════════════════════════
+
+let allResults=[];
+let historico=JSON.parse(localStorage.getItem('bruthus_hist')||'[]');
+
+function parseExcelDate(v) {
+  if(!v)return null;
+  if(v instanceof Date)return v;
+  if(typeof v==='number'){
+    // Excel serial date
+    const d=new Date(Math.round((v-25569)*86400*1000));
+    return d;
+  }
+  if(typeof v==='string'){
+    const d=new Date(v);
+    return isNaN(d)?null:d;
+  }
+  return null;
+}
+
+function processSheet(wb) {
+  const wsName=wb.SheetNames.find(n=>n.includes('MULTI')||n.includes('multi'))||wb.SheetNames[0];
+  const ws=wb.Sheets[wsName];
+  const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+  if(!data||data.length<2)return[];
+
+  const headers=data[0];
+  const results=[];
+
+  // Find column indices
+  const hIdx={};
+  headers.forEach((h,i)=>{ if(h)hIdx[String(h).trim()]=i; });
+
+  const cpfCol=hIdx['CPF']??0;
+  const nomeCol=hIdx['Nome']??2;
+  const dobCol=hIdx['Data Nascimento']??3;
+  const especieCol=hIdx['Especie']??13;
+
+  // Loan blocks start at col AY = index 50 (0-based), stride 10
+  // Fields per block: Tipo(+0),Contrato(+1),Codigo(+2),DataInicio(+3),DataDesc(+4),
+  //                   ValorEmp(+5),ValorParc(+6),Prazo(+7),Taxa(+8),Saldo(+9)
+  const blockStart=50;
+  const stride=10;
+  const maxCols=headers.length;
+
+  for(let r=1;r<data.length;r++){
+    const row=data[r];
+    const cpf=row[cpfCol];
+    if(!cpf)continue;
+
+    const nome=row[nomeCol]||'';
+    const dobRaw=row[dobCol];
+    const dob=parseExcelDate(dobRaw);
+    const especieStr=row[especieCol]||'';
+    const especieNum=getEspecieNum(especieStr);
+
+    for(let b=blockStart;b<maxCols;b+=stride){
+      const tipo=row[b];
+      if(!tipo)continue;
+
+      const contratoNum=row[b+1];
+      const bancoCode=row[b+2];
+      const parcelaRaw=row[b+6];
+      const prazoRaw=row[b+7];
+      const saldoRaw=row[b+9];
+
+      if(!parcelaRaw||!saldoRaw)continue;
+
+      const parcela=parseFloat(String(parcelaRaw).replace(',','.'));
+      const saldo=parseFloat(String(saldoRaw).replace(',','.'));
+      if(isNaN(parcela)||isNaN(saldo))continue;
+
+      const bancoNome=getBankName(bancoCode);
+      const[pagas,total]=parsePrazo(prazoRaw);
+
+      const res=runMotor(dob,especieNum,bancoNome,contratoNum,parcela,saldo,pagas,total);
+
+      const[ageY,ageM]=calcAge(dob);
+      const idadeStr=(ageY!=null)?`${ageY}a ${ageM}m`:'N/A';
+
+      results.push({
+        cpf:String(cpf),nome:String(nome),
+        idade:idadeStr,especie:String(especieStr),
+        bancoOrigem:bancoNome,bancoCode:bancoCode,
+        contrato:String(contratoNum||''),
+        parcela,saldo,prazo:String(prazoRaw||''),
+        pagas,total,
+        destino:res.banco,
+        taxa:res.taxa,coef:res.coef,
+        valorContrato:res.contrato?Math.round(res.contrato*100)/100:null,
+        troco:res.troco?Math.round(res.troco*100)/100:null,
+        elegivel:res.elegivel,
+        motivo:res.motivo
+      });
+    }
+  }
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILE HANDLING
+// ═══════════════════════════════════════════════════════════
+
+function handleFile(file) {
+  if(!file)return;
+  showProcessing(true);
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      document.getElementById('processing-sub').textContent='Lendo arquivo...';
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array',cellDates:true});
+      document.getElementById('processing-sub').textContent='Aplicando Motor Fênix...';
+      setTimeout(()=>{
+        try{
+          allResults=processSheet(wb);
+          showProcessing(false);
+          renderAll(file.name);
+          salvarHistorico(file.name);
+          showToast(`✅ ${allResults.length} parcelas processadas`,'success');
+        }catch(err){
+          showProcessing(false);
+          showToast('Erro ao processar: '+err.message,'error');
+          console.error(err);
+        }
+      },100);
+    }catch(err){
+      showProcessing(false);
+      showToast('Erro ao ler arquivo: '+err.message,'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// drag & drop
+const uploadArea=document.getElementById('upload-area');
+uploadArea.addEventListener('dragover',e=>{e.preventDefault();uploadArea.classList.add('drag-over');});
+uploadArea.addEventListener('dragleave',()=>uploadArea.classList.remove('drag-over'));
+uploadArea.addEventListener('drop',e=>{
+  e.preventDefault(); uploadArea.classList.remove('drag-over');
+  if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
+});
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+
+let currentTab='dashboard';
+let filtroAnalise='todos';
+let filtroEleg='todos';
+let pagAnalise=1;
+let pagEleg=1;
+const PER_PAGE=50;
+
+function renderAll(fileName) {
+  document.getElementById('screen-upload').style.display='none';
+  document.getElementById('screen-main').style.display='block';
+  document.getElementById('tabs').style.display='flex';
+  document.getElementById('file-indicator').textContent='📄 '+fileName;
+  document.getElementById('btn-export').disabled=false;
+
+  renderDashboard();
+  renderTabela();
+  renderElegiveis();
+  updateBadges();
+}
+
+function renderDashboard() {
+  const eleg=allResults.filter(r=>r.elegivel);
+  const total=allResults.length;
+  const totalEleg=eleg.length;
+  const aprovPct=total>0?((totalEleg/total)*100).toFixed(1):0;
+  const vlrContrato=eleg.reduce((s,r)=>s+(r.valorContrato||0),0);
+  const vlrMedio=totalEleg>0?vlrContrato/totalEleg:0;
+  const trocoTotal=eleg.reduce((s,r)=>s+(r.troco||0),0);
+
+  document.getElementById('kpi-grid').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">Contratos</div><div class="kpi-value blue">${fmt(total)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Elegíveis</div><div class="kpi-value green">${fmt(totalEleg)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Aprovação</div><div class="kpi-value gold">${aprovPct}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">💰 Vlr Contrato</div><div class="kpi-value gold" style="font-size:18px">R$ ${fmtMoney(vlrContrato)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Vlr Médio</div><div class="kpi-value silver" style="font-size:18px">R$ ${fmtMoney(vlrMedio)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Troco Total</div><div class="kpi-value green" style="font-size:18px">R$ ${fmtMoney(trocoTotal)}</div></div>
+  `;
+
+  // Portabilidade por banco
+  const byBanco={};
+  eleg.forEach(r=>{
+    if(!byBanco[r.destino])byBanco[r.destino]={count:0,vlr:0,troco:0};
+    byBanco[r.destino].count++;
+    byBanco[r.destino].vlr+=r.valorContrato||0;
+    byBanco[r.destino].troco+=r.troco||0;
+  });
+  const bancoRows=Object.entries(byBanco).sort((a,b)=>b[1].count-a[1].count);
+  document.getElementById('banco-list').innerHTML=bancoRows.map(([b,v])=>`
+    <div class="banco-row">
+      <div><div class="banco-name">${b}</div><div class="banco-count">${v.count} contratos</div></div>
+      <div class="banco-vals">
+        <div class="banco-contrato">R$ ${fmtMoney(v.vlr)}</div>
+        <div class="banco-troco">Troco R$ ${fmtMoney(v.troco)}</div>
+      </div>
+    </div>
+  `).join('')||'<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Sem dados</div></div>';
+
+  // Taxas
+  const byTaxa={};
+  eleg.forEach(r=>{
+    if(r.taxa){const k=r.taxa.toFixed(2)+'%';byTaxa[k]=(byTaxa[k]||0)+1;}
+  });
+  const taxaRows=Object.entries(byTaxa).sort((a,b)=>b[1]-a[1]);
+  const maxTaxa=taxaRows[0]?taxaRows[0][1]:1;
+  document.getElementById('taxa-list').innerHTML=taxaRows.map(([t,c])=>`
+    <div class="taxa-row">
+      <div class="taxa-header"><span class="taxa-label">${t}</span><span class="taxa-count">${c} (${((c/totalEleg)*100).toFixed(1)}%)</span></div>
+      <div class="taxa-bar-bg"><div class="taxa-bar-fill" style="width:${(c/maxTaxa*100).toFixed(1)}%"></div></div>
+    </div>
+  `).join('')||'<div style="color:var(--text-dim);text-align:center;padding:20px">Sem dados</div>';
+}
+
+let filteredAnalise=[];
+let filteredEleg=[];
+
+function renderTabela() {
+  const search=(document.getElementById('search-analise')?.value||'').toLowerCase();
+  filteredAnalise=allResults.filter(r=>{
+    if(filtroAnalise==='elegiveis'&&!r.elegivel)return false;
+    if(filtroAnalise==='inelegiveis'&&r.elegivel)return false;
+    if(search&&!r.nome.toLowerCase().includes(search)&&!r.cpf.includes(search))return false;
+    return true;
+  });
+
+  const start=(pagAnalise-1)*PER_PAGE;
+  const page=filteredAnalise.slice(start,start+PER_PAGE);
+
+  document.getElementById('tbody-analise').innerHTML=page.map(r=>`
+    <tr>
+      <td class="td-name" title="${r.nome}">${r.nome}</td>
+      <td class="td-cpf">${maskCPF(r.cpf)}</td>
+      <td>${r.idade}</td>
+      <td><span class="badge-banco">${r.bancoCode||''}</span></td>
+      <td class="td-money">R$ ${fmtMoney(r.parcela)}</td>
+      <td class="td-money">R$ ${fmtMoney(r.saldo)}</td>
+      <td>${r.prazo}</td>
+      <td>${r.elegivel?`<span class="badge-destino ${destinoClass(r.destino)}">${r.destino}</span>`:'<span style="color:var(--text-dim)">—</span>'}</td>
+      <td class="td-money">${r.valorContrato?'R$ '+fmtMoney(r.valorContrato):'—'}</td>
+      <td class="td-troco">${r.troco?'R$ '+fmtMoney(r.troco):'—'}</td>
+      <td class="td-taxa">${r.taxa?r.taxa.toFixed(2)+'%':'—'}</td>
+      <td>${r.elegivel?'<span class="elegivel-sim">✅ Sim</span>':'<span class="elegivel-nao">❌ Não</span>'}</td>
+      <td class="td-motivo" title="${r.motivo}">${r.motivo}</td>
+    </tr>
+  `).join('');
+
+  renderPagination('pag-analise',filteredAnalise.length,pagAnalise,p=>{pagAnalise=p;renderTabela();});
+}
+
+function renderElegiveis() {
+  const search=(document.getElementById('search-eleg')?.value||'').toLowerCase();
+  filteredEleg=allResults.filter(r=>{
+    if(!r.elegivel)return false;
+    if(filtroEleg!=='todos'){
+      const d=r.destino.toLowerCase();
+      if(filtroEleg==='finanto'&&!d.includes('finanto'))return false;
+      if(filtroEleg==='brb'&&!d.includes('brb'))return false;
+      if(filtroEleg==='digio'&&!d.includes('digio'))return false;
+      if(filtroEleg==='nossa'&&!d.includes('nossa'))return false;
+      if(filtroEleg==='pmt'&&!d.includes('pmt'))return false;
+    }
+    if(search&&!r.nome.toLowerCase().includes(search)&&!r.cpf.includes(search))return false;
+    return true;
+  });
+
+  const start=(pagEleg-1)*PER_PAGE;
+  const page=filteredEleg.slice(start,start+PER_PAGE);
+
+  document.getElementById('tbody-elegiveis').innerHTML=page.map(r=>`
+    <tr>
+      <td class="td-name" title="${r.nome}">${r.nome}</td>
+      <td class="td-cpf">${maskCPF(r.cpf)}</td>
+      <td>${r.idade}</td>
+      <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.especie}</td>
+      <td><span class="badge-banco">${r.bancoCode||''}</span> <span style="font-size:11px;color:var(--text-dim)">${r.bancoOrigem}</span></td>
+      <td class="td-money">R$ ${fmtMoney(r.parcela)}</td>
+      <td class="td-money">R$ ${fmtMoney(r.saldo)}</td>
+      <td>${r.prazo}</td>
+      <td><span class="badge-destino ${destinoClass(r.destino)}">${r.destino}</span></td>
+      <td class="td-money">R$ ${fmtMoney(r.valorContrato)}</td>
+      <td class="td-troco">R$ ${fmtMoney(r.troco)}</td>
+      <td class="td-taxa">${r.taxa?.toFixed(2)}%</td>
+    </tr>
+  `).join('');
+
+  renderPagination('pag-elegiveis',filteredEleg.length,pagEleg,p=>{pagEleg=p;renderElegiveis();});
+  updateFiltroElegBadges();
+}
+
+function updateBadges() {
+  const total=allResults.length;
+  const eleg=allResults.filter(r=>r.elegivel).length;
+  document.getElementById('badge-analise').textContent=total;
+  document.getElementById('badge-elegiveis').textContent=eleg;
+  document.getElementById('fb-todos').textContent=total;
+  document.getElementById('fb-elegiveis').textContent=eleg;
+  document.getElementById('fb-inelegiveis').textContent=total-eleg;
+}
+
+function updateFiltroElegBadges() {
+  const eleg=allResults.filter(r=>r.elegivel);
+  document.getElementById('fbe-todos').textContent=eleg.length;
+  document.getElementById('fbe-finanto').textContent=eleg.filter(r=>r.destino==='Finanto').length;
+  document.getElementById('fbe-brb').textContent=eleg.filter(r=>r.destino==='BRB').length;
+  document.getElementById('fbe-digio').textContent=eleg.filter(r=>r.destino==='Digio').length;
+  document.getElementById('fbe-nossa').textContent=eleg.filter(r=>r.destino==='Nossa Fintech').length;
+  document.getElementById('fbe-pmt').textContent=eleg.filter(r=>r.destino==='PMT Baixa').length;
+}
+
+function renderPagination(id,total,current,cb) {
+  const pages=Math.ceil(total/PER_PAGE);
+  if(pages<=1){document.getElementById(id).innerHTML='';return;}
+  let html='';
+  const start=Math.max(1,current-2);
+  const end=Math.min(pages,current+2);
+  if(current>1)html+=`<button class="page-btn" onclick="(${cb.toString()})(${current-1})">‹</button>`;
+  if(start>1)html+=`<button class="page-btn" onclick="(${cb.toString()})(1)">1</button><span class="page-info">…</span>`;
+  for(let p=start;p<=end;p++)
+    html+=`<button class="page-btn${p===current?' active':''}" onclick="(${cb.toString()})(${p})">${p}</button>`;
+  if(end<pages)html+=`<span class="page-info">…</span><button class="page-btn" onclick="(${cb.toString()})(${pages})">${pages}</button>`;
+  if(current<pages)html+=`<button class="page-btn" onclick="(${cb.toString()})(${current+1})">›</button>`;
+  html+=`<span class="page-info">${total} registros</span>`;
+  document.getElementById(id).innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS & FILTERS
+// ═══════════════════════════════════════════════════════════
+
+function setTab(tab) {
+  currentTab=tab;
+  ['dashboard','analise','elegiveis'].forEach(t=>{
+    document.getElementById('tab-'+t)?.classList.toggle('active',t===tab);
+    document.getElementById('tab-content-'+t).style.display=t===tab?'block':'none';
+  });
+}
+
+function setFiltroAnalise(f,btn) {
+  filtroAnalise=f; pagAnalise=1;
+  document.querySelectorAll('#tab-content-analise .filtro-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTabela();
+}
+
+function setFiltroEleg(f,btn) {
+  filtroEleg=f; pagEleg=1;
+  document.querySelectorAll('#tab-content-elegiveis .filtro-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderElegiveis();
+}
+
+function filtrarTabela(){pagAnalise=1;renderTabela();}
+function filtrarElegiveis(){pagEleg=1;renderElegiveis();}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════
+
+function exportarElegiveis() {
+  const eleg=allResults.filter(r=>r.elegivel);
+  if(!eleg.length){showToast('Nenhum elegível para exportar','error');return;}
+  const ws=XLSX.utils.json_to_sheet(eleg.map(r=>({
+    'CPF':r.cpf,'Nome':r.nome,'Idade':r.idade,'Espécie':r.especie,
+    'Banco Origem':r.bancoOrigem,'Contrato':r.contrato,
+    'Parcela':r.parcela,'Saldo Devedor':r.saldo,'Prazo':r.prazo,
+    'Banco Destino':r.destino,'Taxa':r.taxa,'Coeficiente':r.coef,
+    'Valor Contrato':r.valorContrato,'Troco':r.troco,'Motivo':r.motivo
+  })));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,'Elegíveis',ws);
+  XLSX.writeFile(wb,'Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showToast(`✅ ${eleg.length} elegíveis exportados`,'success');
+}
+
+// ═══════════════════════════════════════════════════════════
+// BUSCA CPF
+// ═══════════════════════════════════════════════════════════
+
+const searchCpf=document.getElementById('search-cpf');
+const searchResults=document.getElementById('search-results');
+
+searchCpf.addEventListener('input',()=>{
+  const q=searchCpf.value.trim().toLowerCase();
+  if(!q||!allResults.length){searchResults.style.display='none';return;}
+  const matches=[...new Map(
+    allResults.filter(r=>r.cpf.includes(q)||r.nome.toLowerCase().includes(q))
+    .map(r=>[r.cpf,r])
+  ).values()].slice(0,8);
+  if(!matches.length){searchResults.style.display='none';return;}
+  searchResults.innerHTML=matches.map(r=>`
+    <div class="search-result-item" onclick="showCpfModal('${r.cpf}')">
+      <div class="sri-name">${r.nome}</div>
+      <div class="sri-meta">CPF: ${maskCPF(r.cpf)} · ${r.idade} · ${r.especie?.slice(0,30)}</div>
+    </div>
+  `).join('');
+  searchResults.style.display='block';
+});
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.search-wrap'))searchResults.style.display='none';
+});
+
+function showCpfModal(cpf) {
+  searchResults.style.display='none';
+  searchCpf.value='';
+  const contratos=allResults.filter(r=>r.cpf===cpf);
+  if(!contratos.length)return;
+  const c=contratos[0];
+  const eleg=contratos.filter(r=>r.elegivel);
+
+  document.getElementById('modal-title').textContent=c.nome;
+  document.getElementById('modal-content').innerHTML=`
+    <div class="modal-cpf-info">
+      <div class="modal-cpf-name">${c.nome}</div>
+      <div class="modal-cpf-meta">CPF: ${maskCPF(cpf)} &nbsp;·&nbsp; Idade: ${c.idade} &nbsp;·&nbsp; ${c.especie}</div>
+      <div style="margin-top:8px;display:flex;gap:16px">
+        <span style="color:var(--blue-glow)">📋 ${contratos.length} parcelas</span>
+        <span style="color:var(--green)">✅ ${eleg.length} elegíveis</span>
+        <span style="color:var(--gold)">💰 R$ ${fmtMoney(eleg.reduce((s,r)=>s+(r.troco||0),0))} troco total</span>
+      </div>
+    </div>
+    ${contratos.map(r=>`
+      <div class="modal-contract">
+        <div class="mc-field"><label>Banco Origem</label><value>${r.bancoOrigem} (${r.bancoCode})</value></div>
+        <div class="mc-field"><label>Parcela</label><value>R$ ${fmtMoney(r.parcela)}</value></div>
+        <div class="mc-field"><label>Saldo</label><value>R$ ${fmtMoney(r.saldo)}</value></div>
+        <div class="mc-field"><label>Prazo</label><value>${r.prazo}</value></div>
+        <div class="mc-field"><label>Destino</label><value><span class="badge-destino ${destinoClass(r.destino)}">${r.destino}</span></value></div>
+        <div class="mc-field"><label>Troco</label><value style="color:${r.elegivel?'var(--green)':'var(--red)'}">${r.troco?'R$ '+fmtMoney(r.troco):'—'}</value></div>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('cpf-modal').classList.add('show');
+}
+
+function closeCpfModal(){document.getElementById('cpf-modal').classList.remove('show');}
+
+// ═══════════════════════════════════════════════════════════
+// HISTÓRICO
+// ═══════════════════════════════════════════════════════════
+
+function salvarHistorico(fileName) {
+  const eleg=allResults.filter(r=>r.elegivel);
+  const item={
+    id:Date.now(), fileName,
+    data:new Date().toLocaleString('pt-BR'),
+    total:allResults.length,
+    elegiveis:eleg.length,
+    vlrContrato:eleg.reduce((s,r)=>s+(r.valorContrato||0),0),
+    troco:eleg.reduce((s,r)=>s+(r.troco||0),0),
+    snapshot:allResults
+  };
+  historico.unshift(item);
+  if(historico.length>5)historico=historico.slice(0,5);
+  try{
+    const light=historico.map(h=>({...h,snapshot:undefined}));
+    localStorage.setItem('bruthus_hist',JSON.stringify(light));
+  }catch(e){}
+  renderHistorico();
+}
+
+function renderHistorico() {
+  const list=document.getElementById('historico-list');
+  if(!historico.length){list.innerHTML='<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px">Nenhum arquivo processado ainda</div>';return;}
+  list.innerHTML=historico.map(h=>`
+    <div class="hist-item">
+      <div class="hist-left">
+        <div class="hist-name">📄 ${h.fileName}</div>
+        <div class="hist-meta">${h.data}</div>
+      </div>
+      <div class="hist-stats">
+        <div class="hist-stat"><div class="hist-stat-val green">${h.elegiveis}</div><div class="hist-stat-label">Eleg</div></div>
+        <div class="hist-stat"><div class="hist-stat-val gold">R$ ${fmtMoney(h.vlrContrato)}</div><div class="hist-stat-label">Vlr Cont</div></div>
+        <div class="hist-stat"><div class="hist-stat-val green">R$ ${fmtMoney(h.troco)}</div><div class="hist-stat-label">Troco</div></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════
+
+function novaBase() {
+  allResults=[];
+  document.getElementById('screen-main').style.display='none';
+  document.getElementById('tabs').style.display='none';
+  document.getElementById('screen-upload').style.display='flex';
+  document.getElementById('btn-export').disabled=true;
+  document.getElementById('file-indicator').textContent='';
+  document.getElementById('file-input').value='';
+}
+
+function showProcessing(show) {
+  document.getElementById('processing-overlay').classList.toggle('show',show);
+}
+
+function showToast(msg,type='') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show'+(type?' '+type:'');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function fmt(n){return n?.toLocaleString('pt-BR')||'0';}
+function fmtMoney(n){return(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function maskCPF(cpf){const c=String(cpf).padStart(11,'0');return c.slice(0,3)+'.'+c.slice(3,6)+'.'+c.slice(6,9)+'-'+c.slice(9);}
+
+function destinoClass(d) {
+  if(!d)return'';
+  const dl=d.toLowerCase();
+  if(dl.includes('finanto'))return'finanto';
+  if(dl.includes('brb'))return'brb';
+  if(dl.includes('digio'))return'digio';
+  if(dl.includes('nossa'))return'nossa';
+  if(dl.includes('pmt'))return'pmt';
+  return'';
+}
+
+// Init
+renderHistorico();
+</script>
+</body>
+</html>
