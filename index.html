@@ -1257,37 +1257,41 @@ function filtrarElegiveis(){pagEleg=1;renderElegiveis();}
 
 function exportarElegiveis() {
   try {
-    // Use selected rows if any, otherwise all elegíveis
     let eleg;
-    if(selectedRows.size>0){
+    if(selectedRows && selectedRows.size>0){
       eleg=Array.from(selectedRows).sort((a,b)=>a-b).map(i=>filteredEleg[i]).filter(Boolean);
     } else {
       eleg=allResults.filter(r=>r.elegivel);
     }
     if(!eleg.length){showToast('Nenhum registro para exportar','error');return;}
-    const rows=eleg.map(r=>({
-      'CPF': String(r.cpf||''),
-      'Nome': String(r.nome||''),
-      'Idade': String(r.idade||''),
-      'Especie': String(r.especie||''),
-      'Banco Origem': String(r.bancoOrigem||''),
-      'Cod Banco': String(r.bancoCode||''),
-      'Contrato': String(r.contrato||''),
-      'Parcela': Number(r.parcela)||0,
-      'Saldo Devedor': Number(r.saldo)||0,
-      'Prazo': String(r.prazo||''),
-      'Banco Destino': String(r.destino||''),
-      'Taxa': Number(r.taxa)||0,
-      'Coeficiente': Number(r.coef)||0,
-      'Valor Contrato': Number(r.valorContrato)||0,
-      'Troco': Number(r.troco)||0,
-      'Motivo': String(r.motivo||'')
-    }));
+
+    const rows=eleg.map(r=>{
+      const s=v=>v===null||v===undefined?'':String(v);
+      const n=v=>isNaN(parseFloat(v))?0:parseFloat(v);
+      return {
+        'CPF':s(r.cpf),
+        'Nome':s(r.nome),
+        'Idade':s(r.idade),
+        'Especie':s(r.especie),
+        'Banco Origem':s(r.bancoOrigem),
+        'Cod Banco':s(r.bancoCode),
+        'Contrato':s(r.contrato),
+        'Parcela':n(r.parcela),
+        'Saldo Devedor':n(r.saldo),
+        'Prazo':s(r.prazo),
+        'Banco Destino':s(r.destino),
+        'Taxa':n(r.taxa),
+        'Coeficiente':n(r.coef),
+        'Valor Contrato':n(r.valorContrato),
+        'Troco':n(r.troco),
+        'Motivo':s(r.motivo)
+      };
+    });
+
     const ws=XLSX.utils.json_to_sheet(rows);
     ws['!cols']=Object.keys(rows[0]).map(k=>({wch:Math.max(k.length+2,14)}));
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,'Elegiveis',ws);
-    // Use write + blob download (works in all browsers/Vercel)
     const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
     const blob=new Blob([wbout],{type:'application/octet-stream'});
     const url=URL.createObjectURL(blob);
@@ -1297,10 +1301,10 @@ function exportarElegiveis() {
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-    showToast('Exportados: '+eleg.length+' elegiveis!','success');
+    showToast('Exportados '+eleg.length+' registros!','success');
   } catch(err) {
-    console.error('Export error:', err);
-    showToast('Erro: '+String(err.message),'error');
+    console.error('Export error:',err);
+    showToast('Erro: '+String(err),'error');
   }
 }
 
