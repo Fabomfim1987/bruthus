@@ -1409,85 +1409,35 @@ function buildRmcRccXml() {
 
 function exportarElegiveis() {
   try {
-    let eleg;
-    if(selectedRows && selectedRows.size>0){
-      eleg=Array.from(selectedRows).sort((a,b)=>a-b).map(i=>filteredEleg[i]).filter(Boolean);
-    } else {
-      eleg=allResults.filter(r=>r.elegivel);
-    }
-    if(!eleg.length){showToast('Nenhum registro para exportar','error');return;}
-
     const s=v=>(v===null||v===undefined)?'':String(v);
     const n=v=>{const f=parseFloat(v);return isNaN(f)?0:Math.round(f*100000)/100000;};
     const nm=v=>{const f=parseFloat(v);return isNaN(f)?0:Math.round(f*100)/100;};
-    const esc=v=>s(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
+    const esc=v=>s(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const isPMT=r=>(s(r.destino)||'').toLowerCase().includes('pmt');
 
-    // ── ABA 1: TOTAL ELEGÍVEIS (agrupado por CPF) ──────────────────────────
-    const clientMap={};
-    eleg.forEach(r=>{
-      const cpf=s(r.cpf);
-      if(!clientMap[cpf]) clientMap[cpf]={nome:s(r.nome),cpf,vlrContrato:0,troco:0,pmtContrato:0,pmtTroco:0};
-      if(isPMT(r)){
-        clientMap[cpf].pmtContrato+=nm(r.valorContrato);
-        clientMap[cpf].pmtTroco+=nm(r.troco);
-      } else {
-        clientMap[cpf].vlrContrato+=nm(r.valorContrato);
-        clientMap[cpf].troco+=nm(r.troco);
-      }
-    });
-    const tab1=Object.values(clientMap).sort((a,b)=>b.vlrContrato-a.vlrContrato);
+    if(!allResults.length){showToast('Nenhum dado para exportar','error');return;}
 
-    // ── ABA 2: ANALÍTICO PMT BANCO DE ORIGEM (exceto PMT Baixa) ───────────
-    const bancoMap={};
-    eleg.filter(r=>!isPMT(r)).forEach(r=>{
-      const b=s(r.bancoOrigem)||'Desconhecido';
-      if(!bancoMap[b]) bancoMap[b]={banco:b,somaSD:0,count:0,somaParcela:0};
-      bancoMap[b].somaSD+=nm(r.saldo);
-      bancoMap[b].count++;
-      bancoMap[b].somaParcela+=nm(r.parcela);
-    });
-    const tab2=Object.values(bancoMap).sort((a,b)=>b.somaSD-a.somaSD);
+    // ── BANCO COLORS ──────────────────────────────────────────────────────
+    const BANCO_BG={'Finanto':'FFF2CC','BRB':'DEEAF1','Digio':'E2EFDA','Nossa Fintech':'F4CCFF','PMT Baixa':'FCE4D6'};
+    const BANCO_BADGE={'Finanto':'B8860B','BRB':'1565C0','Digio':'2E7D32','Nossa Fintech':'6A0DAD','PMT Baixa':'B85C00'};
+    const BANCO_FNT={'Finanto':'7B5800','BRB':'1A3A6C','Digio':'375623','Nossa Fintech':'4A0080','PMT Baixa':'B85C00'};
 
-    // ── ABA 3: ANALÍTICO BANCOS PMT BAIXA ─────────────────────────────────
-    const pmtMap={};
-    eleg.filter(r=>isPMT(r)).forEach(r=>{
-      const b=s(r.bancoOrigem)||'Desconhecido';
-      if(!pmtMap[b]) pmtMap[b]={banco:b,somaContrato:0,somaTroco:0,count:0,somaParcela:0};
-      pmtMap[b].somaContrato+=nm(r.valorContrato);
-      pmtMap[b].somaTroco+=nm(r.troco);
-      pmtMap[b].count++;
-      pmtMap[b].somaParcela+=nm(r.parcela);
-    });
-    const tab3=Object.values(pmtMap).sort((a,b)=>b.somaTroco-a.somaTroco);
-
-    // ── ABA 4: ELEGÍVEIS (linha a linha) ──────────────────────────────────
-    const bancoCor=(dest)=>{
-      const d=(dest||'').toLowerCase();
-      if(d.includes('finanto')) return 'FFF2CC';
-      if(d.includes('brb'))     return 'DEEAF1';
-      if(d.includes('digio'))   return 'E2EFDA';
-      if(d.includes('nossa'))   return 'F4CCFF';
-      if(d.includes('pmt'))     return 'FCE4D6';
-      return null;
-    };
-
-    // ── XML STYLES ─────────────────────────────────────────────────────────
+    // ── STYLES ────────────────────────────────────────────────────────────
     const STYLES=`
   <Style ss:ID="H"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="H2"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#375623" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="H3"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#833C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="HPMT"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#B85C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="HRMC"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#2E75B6" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="T"><Font ss:FontName="Arial" ss:Size="9"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="Tg"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="M"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="Mg"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="P"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="Pg"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="C5"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="C5g"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="ES"><Font ss:Bold="1" ss:Color="#375623" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="EN"><Font ss:Bold="1" ss:Color="#9C0006" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF0F0" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TOT"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TOTL"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TOTN"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="TFFF2CC"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="MFFF2CC"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="PFFF2CC"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
@@ -1508,210 +1458,215 @@ function exportarElegiveis() {
   <Style ss:ID="MFCE4D6"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="PFCE4D6"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
   <Style ss:ID="CFCE4D6"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="TOT"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="TOTL"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="TOTN"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>`;
+  <Style ss:ID="RTY"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFFDE7" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTYg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFF9C4" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RT"><Font ss:FontName="Arial" ss:Size="8"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RN"><Font ss:FontName="Arial" ss:Size="8"/><NumberFormat ss:Format="#,##0"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RNY"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#FFFDE7" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTOT"><Font ss:Bold="1" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#333333"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>`;
 
-    // ── ABA 1 XML ──────────────────────────────────────────────────────────
-    let ws1=`<Worksheet ss:Name="Total Elegíveis">
-<Table ss:DefaultRowHeight="18">
-  <Column ss:Width="180"/><Column ss:Width="90"/>
-  <Column ss:Width="110"/><Column ss:Width="90"/>
-  <Column ss:Width="110"/><Column ss:Width="90"/>
-<Row ss:Height="28">
-  <Cell ss:StyleID="H2"><Data ss:Type="String">Nome</Data></Cell>
-  <Cell ss:StyleID="H2"><Data ss:Type="String">CPF</Data></Cell>
-  <Cell ss:StyleID="H2"><Data ss:Type="String">Valor Total Contrato</Data></Cell>
-  <Cell ss:StyleID="H2"><Data ss:Type="String">Valor Total Troco</Data></Cell>
-  <Cell ss:StyleID="H2"><Data ss:Type="String">Total Contrato PMT Baixa</Data></Cell>
-  <Cell ss:StyleID="H2"><Data ss:Type="String">Total Troco PMT Baixa</Data></Cell>
-</Row>`;
-    tab1.forEach((r,i)=>{
-      const g=i%2===1?'g':'';
-      ws1+=`
-<Row>
-  <Cell ss:StyleID="T${g}"><Data ss:Type="String">${esc(r.nome)}</Data></Cell>
-  <Cell ss:StyleID="T${g}"><Data ss:Type="String">${esc(r.cpf)}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${r.vlrContrato}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${r.troco}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${r.pmtContrato}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${r.pmtTroco}</Data></Cell>
-</Row>`;
+    // ── ABA 1: RESUMO PORTABILIDADE ───────────────────────────────────────
+    const clients={};
+    allResults.filter(r=>r.elegivel).forEach(r=>{
+      const cpf=s(r.cpf);
+      if(!clients[cpf]) clients[cpf]={cpf,nome:s(r.nome),idade:s(r.idade),especie:s(r.especie),ct:[]};
+      clients[cpf].ct.push(r);
     });
-    // Totais
-    const totVlr=tab1.reduce((s,r)=>s+r.vlrContrato,0);
-    const totTroco=tab1.reduce((s,r)=>s+r.troco,0);
-    const totPmtVlr=tab1.reduce((s,r)=>s+r.pmtContrato,0);
-    const totPmtTroco=tab1.reduce((s,r)=>s+r.pmtTroco,0);
-    ws1+=`
-<Row>
-  <Cell ss:StyleID="TOTL"><Data ss:Type="String">TOTAL GERAL</Data></Cell>
-  <Cell ss:StyleID="TOTL"><Data ss:Type="String"></Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(totVlr*100)/100}</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(totTroco*100)/100}</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(totPmtVlr*100)/100}</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(totPmtTroco*100)/100}</Data></Cell>
-</Row>
+    const rowsPorto=Object.values(clients).map(c=>{
+      const o=c.ct.filter(r=>!isPMT(r)), p=c.ct.filter(r=>isPMT(r));
+      const pool=o.length?o:p;
+      const best=pool.reduce((a,b)=>(nm(b.troco)>nm(a.troco)?b:a));
+      return {
+        nome:c.nome, cpf:c.cpf, idade:c.idade, especie:c.especie,
+        melhorBanco:s(best.destino), qtd:c.ct.length,
+        vlrPorto:o.reduce((t,r)=>t+nm(r.valorContrato),0),
+        trocoPorto:o.reduce((t,r)=>t+nm(r.troco),0),
+        vlrPMT:p.reduce((t,r)=>t+nm(r.valorContrato),0),
+        trocoPMT:p.reduce((t,r)=>t+nm(r.troco),0),
+        vlrTotal:c.ct.reduce((t,r)=>t+nm(r.valorContrato),0),
+        trocoTotal:c.ct.reduce((t,r)=>t+nm(r.troco),0),
+      };
+    }).sort((a,b)=>b.vlrTotal-a.vlrTotal);
+
+    const eleg=allResults.filter(r=>r.elegivel);
+    const porto=eleg.filter(r=>!isPMT(r)), pmtArr=eleg.filter(r=>isPMT(r));
+    const vlrPortoTot=porto.reduce((t,r)=>t+nm(r.valorContrato),0);
+    const trocoPortoTot=porto.reduce((t,r)=>t+nm(r.troco),0);
+    const vlrPMTTot=pmtArr.reduce((t,r)=>t+nm(r.valorContrato),0);
+    const trocoPMTTot=pmtArr.reduce((t,r)=>t+nm(r.troco),0);
+    const vlrTotal=eleg.reduce((t,r)=>t+nm(r.valorContrato),0);
+
+    const H=`<Cell ss:StyleID="H"><Data ss:Type="String">`;
+    const HE=`</Data></Cell>`;
+    const CE=`</Data></Cell>`;
+
+    let ws1=`<Worksheet ss:Name="Resumo Portabilidade"><Table ss:DefaultRowHeight="16">
+<Column ss:Width="180"/><Column ss:Width="80"/><Column ss:Width="50"/><Column ss:Width="120"/>
+<Column ss:Width="100"/><Column ss:Width="50"/><Column ss:Width="110"/><Column ss:Width="100"/>
+<Column ss:Width="110"/><Column ss:Width="100"/><Column ss:Width="110"/><Column ss:Width="100"/>
+<Row ss:Height="28">${H}Nome${HE}${H}CPF${HE}${H}Idade${HE}${H}Espécie${HE}${H}Melhor Banco${HE}${H}Qtd Contr.${HE}${H}Vlr Cont. Portabilidade${HE}${H}Troco Portabilidade${HE}${H}Vlr Cont. PMT Baixa${HE}${H}Troco PMT Baixa${HE}${H}Vlr Cont. TOTAL ★${HE}${H}Troco TOTAL${HE}</Row>\n`;
+
+    rowsPorto.forEach((r,i)=>{
+      const g=i%2?'g':''; const cor=BANCO_BG[r.melhorBanco]||''; const C=cor?`T${cor}`:`T${g}`; const MC=cor?`M${cor}`:`M${g}`;
+      ws1+=`<Row><Cell ss:StyleID="${C}"><Data ss:Type="String">${esc(r.nome)}</Data></Cell>
+<Cell ss:StyleID="${C}"><Data ss:Type="String">${esc(r.cpf)}</Data></Cell>
+<Cell ss:StyleID="${C}"><Data ss:Type="String">${esc(r.idade)}</Data></Cell>
+<Cell ss:StyleID="${C}"><Data ss:Type="String">${esc(r.especie)}</Data></Cell>
+<Cell ss:StyleID="${C}"><Data ss:Type="String">${esc(r.melhorBanco)}</Data></Cell>
+<Cell ss:StyleID="${C}"><Data ss:Type="Number">${r.qtd}</Data></Cell>
+<Cell ss:StyleID="${MC}"><Data ss:Type="Number">${r.vlrPorto}</Data></Cell>
+<Cell ss:StyleID="${MC}"><Data ss:Type="Number">${r.trocoPorto}</Data></Cell>
+<Cell ss:StyleID="${MC}"><Data ss:Type="Number">${r.vlrPMT}</Data></Cell>
+<Cell ss:StyleID="${MC}"><Data ss:Type="Number">${r.trocoPMT}</Data></Cell>
+<Cell ss:StyleID="M"><Data ss:Type="Number">${r.vlrTotal}</Data></Cell>
+<Cell ss:StyleID="M"><Data ss:Type="Number">${r.trocoTotal}</Data></Cell></Row>\n`;
+    });
+    ws1+=`<Row><Cell ss:StyleID="TOTL"><Data ss:Type="String">TOTAL GERAL</Data></Cell>
+<Cell ss:StyleID="TOTL"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="TOTL"><Data ss:Type="String"></Data></Cell>
+<Cell ss:StyleID="TOTL"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="TOTL"><Data ss:Type="String"></Data></Cell>
+<Cell ss:StyleID="TOTN"><Data ss:Type="Number">${rowsPorto.reduce((t,r)=>t+r.qtd,0)}</Data></Cell>
+<Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(vlrPortoTot*100)/100}</Data></Cell>
+<Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(trocoPortoTot*100)/100}</Data></Cell>
+<Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(vlrPMTTot*100)/100}</Data></Cell>
+<Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(trocoPMTTot*100)/100}</Data></Cell>
+<Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(vlrTotal*100)/100}</Data></Cell>
+<Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round((trocoPortoTot+trocoPMTTot)*100)/100}</Data></Cell></Row>
 </Table></Worksheet>`;
 
-    // ── ABA 2 XML ──────────────────────────────────────────────────────────
-    let ws2=`<Worksheet ss:Name="Analítico PMT Banco de Origem">
-<Table ss:DefaultRowHeight="18">
-  <Column ss:Width="160"/><Column ss:Width="120"/>
-  <Column ss:Width="80"/><Column ss:Width="100"/>
-<Row ss:Height="28">
-  <Cell ss:StyleID="H"><Data ss:Type="String">Banco Origem</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Soma de Saldo Devedor</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Contagem de Parcelas</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Média de Parcela</Data></Cell>
-</Row>`;
-    tab2.forEach((r,i)=>{
-      const g=i%2===1?'g':'';
-      const media=r.count>0?Math.round(r.somaParcela/r.count*100)/100:0;
-      ws2+=`
-<Row>
-  <Cell ss:StyleID="T${g}"><Data ss:Type="String">${esc(r.banco)}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${r.somaSD}</Data></Cell>
-  <Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.count}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${media}</Data></Cell>
-</Row>`;
+    // ── ABA 2: RESUMO CARTÃO (RMC/RCC) ───────────────────────────────────
+    let ws2=`<Worksheet ss:Name="Resumo Cartão"></Worksheet>`;
+    if(rawSheetData && rawSheetData.length>1){
+      try{
+        const rmcI=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC'); const rccI=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+        const ri=rmcI>=0?rmcI:38; const rci=rccI>=0?rccI:45;
+        const rmcCnt={}, rccCnt={}, HL=new Set(['318','623','707']);
+        const BMAP={'318':'BMG','623':'PAN','707':'DAYCOVAL','33':'SANTANDER','465':'QUERO+','389':'MERCANTIL DO BRASIL','934':'BANCO CETELEM','237':'BRADESCO','935':'FACTA','121':'AGIBANK','104':'CAIXA ECONÔMICA','41':'BANRISUL','243':'BANCO MASTER','903':'BANCO DO BRASIL','999':'DIVERSOS','643':'PINE','422':'SAFRA','908':'PORTOCRED','254':'PARANÁ BANCO','79':'ORIGINAL','329':'QI TECH'};
+        let semRMC=0, semRCC=0;
+        for(let r=1;r<rawSheetData.length;r++){
+          const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
+          const rmc=String(row[ri]||'').trim(); const rcc=String(row[rci]||'').trim();
+          if(rmc&&rmc!=='null'&&rmc!=='undefined') rmcCnt[rmc]=(rmcCnt[rmc]||0)+1; else semRMC++;
+          if(rcc&&rcc!=='null'&&rcc!=='undefined') rccCnt[rcc]=(rccCnt[rcc]||0)+1; else semRCC++;
+        }
+        const allB=Array.from(new Set([...Object.keys(rmcCnt),...Object.keys(rccCnt)])).sort((a,b)=>((rmcCnt[b]||0)+(rccCnt[b]||0))-((rmcCnt[a]||0)+(rccCnt[a]||0)));
+        const totRMC=Object.values(rmcCnt).reduce((t,v)=>t+v,0), totRCC=Object.values(rccCnt).reduce((t,v)=>t+v,0);
+        const HRC=`<Cell ss:StyleID="HRMC"><Data ss:Type="String">`;
+        ws2=`<Worksheet ss:Name="Resumo Cartão"><Table ss:DefaultRowHeight="18">
+<Column ss:Width="70"/><Column ss:Width="160"/><Column ss:Width="100"/><Column ss:Width="100"/><Column ss:Width="100"/><Column ss:Width="100"/>
+<Row ss:Height="24">${HRC}Código${CE}${HRC}Nome do Banco${CE}${HRC}Total CPF RMC${CE}${HRC}Total CPF RCC${CE}${HRC}Total SEM RMC${CE}${HRC}Total SEM RCC${CE}</Row>\n`;
+        allB.forEach((code,i)=>{
+          const hl=HL.has(code); const g=i%2?'g':'';
+          const ts=hl?(i%2?'RTYg':'RTY'):`RT${g}`; const ns=hl?'RNY':`RN`;
+          ws2+=`<Row><Cell ss:StyleID="${ts}"><Data ss:Type="String">${esc(code)}</Data></Cell><Cell ss:StyleID="${ts}"><Data ss:Type="String">${esc(BMAP[code]||('Banco '+code))}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${rmcCnt[code]||0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${rccCnt[code]||0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRMC:0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRCC:0}</Data></Cell></Row>\n`;
+        });
+        ws2+=`<Row><Cell ss:StyleID="RTOT"><Data ss:Type="String">TOTAL</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totRMC}</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${totRCC}</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${semRMC}</Data></Cell><Cell ss:StyleID="RTOT"><Data ss:Type="Number">${semRCC}</Data></Cell></Row>
+</Table></Worksheet>`;
+      }catch(e){console.error('Resumo Cartão error:',e);}
+    }
+
+    // ── ABA 3: ANALÍTICO PMT BANCO DE ORIGEM ─────────────────────────────
+    const bancoMapPorto={};
+    porto.forEach(r=>{
+      const b=s(r.bancoOrigem)||'Desconhecido';
+      if(!bancoMapPorto[b]) bancoMapPorto[b]={sd:0,cnt:0,sp:0};
+      bancoMapPorto[b].sd+=nm(r.saldo); bancoMapPorto[b].cnt++; bancoMapPorto[b].sp+=nm(r.parcela);
     });
-    const tot2SD=tab2.reduce((s,r)=>s+r.somaSD,0);
-    const tot2Cnt=tab2.reduce((s,r)=>s+r.count,0);
-    const tot2Med=tot2Cnt>0?Math.round(tab2.reduce((s,r)=>s+r.somaParcela,0)/tot2Cnt*100)/100:0;
-    ws2+=`
-<Row>
-  <Cell ss:StyleID="TOTL"><Data ss:Type="String">Total Geral</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(tot2SD*100)/100}</Data></Cell>
-  <Cell ss:StyleID="TOTN"><Data ss:Type="Number">${tot2Cnt}</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${tot2Med}</Data></Cell>
-</Row>
+    const tab2=Object.entries(bancoMapPorto).map(([b,v])=>({b,sd:v.sd,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.sd-a.sd);
+    let ws3=`<Worksheet ss:Name="Analítico PMT Banco de Origem"><Table ss:DefaultRowHeight="16">
+<Column ss:Width="160"/><Column ss:Width="120"/><Column ss:Width="80"/><Column ss:Width="100"/>
+<Row ss:Height="26">${H}Banco Origem${HE}${H}Soma Saldo Devedor${HE}${H}Contagem Parcelas${HE}${H}Média Parcela${HE}</Row>\n`;
+    tab2.forEach((r,i)=>{const g=i%2?'g':''; ws3+=`<Row><Cell ss:StyleID="T${g}"><Data ss:Type="String">${esc(r.b)}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.sd*100)/100}</Data></Cell><Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.cnt}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.med*100)/100}</Data></Cell></Row>\n`;});
+    const tot2SD=tab2.reduce((t,r)=>t+r.sd,0), tot2Cnt=tab2.reduce((t,r)=>t+r.cnt,0), tot2Med=tot2Cnt?tab2.reduce((t,r)=>t+r.sp*(r.cnt||0),0)/tot2Cnt:0;
+    ws3+=`<Row><Cell ss:StyleID="TOTL"><Data ss:Type="String">Total Geral</Data></Cell><Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(tot2SD*100)/100}</Data></Cell><Cell ss:StyleID="TOTN"><Data ss:Type="Number">${tot2Cnt}</Data></Cell><Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(porto.reduce((t,r)=>t+nm(r.parcela),0)/tot2Cnt*100)/100}</Data></Cell></Row>
 </Table></Worksheet>`;
 
-    // ── ABA 3 XML ──────────────────────────────────────────────────────────
-    let ws3=`<Worksheet ss:Name="Analítico Bancos PMT Baixa">
-<Table ss:DefaultRowHeight="18">
-  <Column ss:Width="160"/><Column ss:Width="120"/>
-  <Column ss:Width="100"/><Column ss:Width="80"/>
-  <Column ss:Width="100"/>
-<Row ss:Height="28">
-  <Cell ss:StyleID="H3"><Data ss:Type="String">Banco Origem</Data></Cell>
-  <Cell ss:StyleID="H3"><Data ss:Type="String">Soma Valor Contrato</Data></Cell>
-  <Cell ss:StyleID="H3"><Data ss:Type="String">Soma do Troco</Data></Cell>
-  <Cell ss:StyleID="H3"><Data ss:Type="String">Contagem de Parcelas</Data></Cell>
-  <Cell ss:StyleID="H3"><Data ss:Type="String">Média de Parcela</Data></Cell>
-</Row>`;
-    tab3.forEach((r,i)=>{
-      const g=i%2===1?'g':'';
-      const media=r.count>0?Math.round(r.somaParcela/r.count*100)/100:0;
-      ws3+=`
-<Row>
-  <Cell ss:StyleID="T${g}"><Data ss:Type="String">${esc(r.banco)}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${r.somaContrato}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${r.somaTroco}</Data></Cell>
-  <Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.count}</Data></Cell>
-  <Cell ss:StyleID="M${g}"><Data ss:Type="Number">${media}</Data></Cell>
-</Row>`;
+    // ── ABA 4: ANALÍTICO BANCOS PMT BAIXA ────────────────────────────────
+    const bancoMapPMT={};
+    pmtArr.forEach(r=>{
+      const b=s(r.bancoOrigem)||'Desconhecido';
+      if(!bancoMapPMT[b]) bancoMapPMT[b]={vc:0,tr:0,cnt:0,sp:0};
+      bancoMapPMT[b].vc+=nm(r.valorContrato); bancoMapPMT[b].tr+=nm(r.troco); bancoMapPMT[b].cnt++; bancoMapPMT[b].sp+=nm(r.parcela);
     });
-    const tot3C=tab3.reduce((s,r)=>s+r.somaContrato,0);
-    const tot3T=tab3.reduce((s,r)=>s+r.somaTroco,0);
-    const tot3Cnt=tab3.reduce((s,r)=>s+r.count,0);
-    const tot3Med=tot3Cnt>0?Math.round(tab3.reduce((s,r)=>s+r.somaParcela,0)/tot3Cnt*100)/100:0;
-    ws3+=`
-<Row>
-  <Cell ss:StyleID="TOTL"><Data ss:Type="String">Total Geral</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(tot3C*100)/100}</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(tot3T*100)/100}</Data></Cell>
-  <Cell ss:StyleID="TOTN"><Data ss:Type="Number">${tot3Cnt}</Data></Cell>
-  <Cell ss:StyleID="TOT"><Data ss:Type="Number">${tot3Med}</Data></Cell>
-</Row>
+    const tab3=Object.entries(bancoMapPMT).map(([b,v])=>({b,vc:v.vc,tr:v.tr,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.tr-a.tr);
+    const HPMT=`<Cell ss:StyleID="HPMT"><Data ss:Type="String">`;
+    let ws4=`<Worksheet ss:Name="Analítico Bancos PMT Baixa"><Table ss:DefaultRowHeight="16">
+<Column ss:Width="160"/><Column ss:Width="120"/><Column ss:Width="100"/><Column ss:Width="80"/><Column ss:Width="100"/>
+<Row ss:Height="26">${HPMT}Banco Origem${CE}${HPMT}Soma Vlr Contrato${CE}${HPMT}Soma Troco${CE}${HPMT}Contagem Parcelas${CE}${HPMT}Média Parcela${CE}</Row>\n`;
+    tab3.forEach((r,i)=>{const g=i%2?'g':''; ws4+=`<Row><Cell ss:StyleID="T${g}"><Data ss:Type="String">${esc(r.b)}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.vc*100)/100}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.tr*100)/100}</Data></Cell><Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.cnt}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.med*100)/100}</Data></Cell></Row>\n`;});
+    const tot3VC=tab3.reduce((t,r)=>t+r.vc,0), tot3TR=tab3.reduce((t,r)=>t+r.tr,0), tot3Cnt=tab3.reduce((t,r)=>t+r.cnt,0);
+    ws4+=`<Row><Cell ss:StyleID="TOTL"><Data ss:Type="String">Total Geral</Data></Cell><Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(tot3VC*100)/100}</Data></Cell><Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(tot3TR*100)/100}</Data></Cell><Cell ss:StyleID="TOTN"><Data ss:Type="Number">${tot3Cnt}</Data></Cell><Cell ss:StyleID="TOT"><Data ss:Type="Number">${Math.round(pmtArr.reduce((t,r)=>t+nm(r.parcela),0)/tot3Cnt*100)/100}</Data></Cell></Row>
 </Table></Worksheet>`;
 
-    // ── ABA 4: ELEGÍVEIS linha a linha ────────────────────────────────────
-    let ws4=`<Worksheet ss:Name="Elegíveis">
-<Table ss:DefaultRowHeight="18">
-  <Column ss:Width="80"/><Column ss:Width="180"/><Column ss:Width="50"/>
-  <Column ss:Width="200"/><Column ss:Width="140"/><Column ss:Width="110"/>
-  <Column ss:Width="60"/><Column ss:Width="80"/><Column ss:Width="60"/>
-  <Column ss:Width="100"/><Column ss:Width="55"/><Column ss:Width="65"/>
-  <Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="50"/>
-  <Column ss:Width="200"/>
-<Row ss:Height="28">
-  <Cell ss:StyleID="H"><Data ss:Type="String">CPF</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Nome</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Idade</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Espécie</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Banco Origem</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Contrato</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Parcela</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Saldo Devedor</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Prazo</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Banco Prioritário</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Taxa Aplicada</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Coeficiente</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Valor Contrato</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Troco</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Elegível</Data></Cell>
-  <Cell ss:StyleID="H"><Data ss:Type="String">Motivo</Data></Cell>
-</Row>`;
+    // ── ABA 5: ELEGÍVEIS (todas as parcelas) ──────────────────────────────
+    const bancoCor=(dest)=>{
+      const d=(dest||'').toLowerCase();
+      if(d.includes('finanto'))return'FFF2CC'; if(d.includes('brb'))return'DEEAF1';
+      if(d.includes('digio'))return'E2EFDA'; if(d.includes('nossa'))return'F4CCFF';
+      if(d.includes('pmt'))return'FCE4D6'; return null;
+    };
+    let ws5=`<Worksheet ss:Name="Elegíveis"><Table ss:DefaultRowHeight="15">
+<Column ss:Width="80"/><Column ss:Width="180"/><Column ss:Width="50"/><Column ss:Width="200"/>
+<Column ss:Width="140"/><Column ss:Width="110"/><Column ss:Width="60"/><Column ss:Width="80"/>
+<Column ss:Width="60"/><Column ss:Width="100"/><Column ss:Width="55"/><Column ss:Width="65"/>
+<Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="50"/><Column ss:Width="200"/>
+<Row ss:Height="28">${H}CPF${HE}${H}Nome${HE}${H}Idade${HE}${H}Espécie${HE}${H}Banco Origem${HE}${H}Contrato${HE}${H}Parcela${HE}${H}Saldo Devedor${HE}${H}Prazo${HE}${H}Banco Prioritário${HE}${H}Taxa Aplicada${HE}${H}Coeficiente${HE}${H}Valor Contrato${HE}${H}Troco${HE}${H}Elegível${HE}${H}Motivo${HE}</Row>\n`;
     allResults.forEach((r,idx)=>{
       const cor=r.elegivel?(bancoCor(r.destino)||'none'):(idx%2===0?'gray':'none');
       const T=cor==='none'?'T':cor==='gray'?'Tg':'T'+cor;
       const Mo=cor==='none'?'M':cor==='gray'?'Mg':'M'+cor;
-      const Po=cor==='none'?'P':cor==='gray'?'Pg':'P'+cor;
-      const Co=cor==='none'?'C5':cor==='gray'?'C5g':'C'+cor;
-      ws4+=`
-<Row>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.cpf)}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.nome)}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.idade)}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.especie)}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.bancoOrigem)}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.contrato)}</Data></Cell>
-  <Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.parcela)}</Data></Cell>
-  <Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.saldo)}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.prazo)}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.destino)}</Data></Cell>
-  <Cell ss:StyleID="${Po}"><Data ss:Type="Number">${n(r.taxa)}</Data></Cell>
-  <Cell ss:StyleID="${Co}"><Data ss:Type="Number">${n(r.coef)}</Data></Cell>
-  <Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.valorContrato)}</Data></Cell>
-  <Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.troco)}</Data></Cell>
-  <Cell ss:StyleID="${r.elegivel?'ES':'EN'}"><Data ss:Type="String">${r.elegivel?'Sim':'Não'}</Data></Cell>
-  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.motivo)}</Data></Cell>
-</Row>`;
+      const Po=cor==='none'?'P':cor==='gray'?'P':'P'+cor;
+      const Co=cor==='none'?'C5':cor==='gray'?'C5':'C'+cor;
+      ws5+=`<Row><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.cpf)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.nome)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.idade)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.especie)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.bancoOrigem)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.contrato)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.parcela)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.saldo)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.prazo)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.destino)}</Data></Cell><Cell ss:StyleID="${Po}"><Data ss:Type="Number">${n(r.taxa)}</Data></Cell><Cell ss:StyleID="${Co}"><Data ss:Type="Number">${n(r.coef)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.valorContrato)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${nm(r.troco)}</Data></Cell><Cell ss:StyleID="${r.elegivel?'ES':'EN'}"><Data ss:Type="String">${r.elegivel?'Sim':'Não'}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.motivo)}</Data></Cell></Row>\n`;
     });
-    ws4+=`\n</Table></Worksheet>`;
+    ws5+=`</Table></Worksheet>`;
 
-    // ── RMC/RCC SHEETS ────────────────────────────────────────────────────
-    let rmcStylesXml='';
-    let rmcSheetsXml='';
+    // ── ABAS RMC/RCC (sem aba Resumo) ─────────────────────────────────────
+    let rmcSheets='';
     if(rawSheetData && rawSheetData.length>1){
       try{
-        document.getElementById('processing-sub').textContent='Processando RMC/RCC...';
-        const rmc=buildRmcRccXml();
-        if(rmc && rmc.styles && rmc.sheets){
-          rmcStylesXml=rmc.styles;
-          rmcSheetsXml=rmc.sheets.join('\n');
+        const rmcI=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+        const rccI=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+        const ri2=rmcI>=0?rmcI:38; const rci2=rccI>=0?rccI:45;
+        const sv2=v=>{const str=String(v===null||v===undefined?'':v); return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+
+        const rmcBMG=[],rmcPAN=[],rmcDAY=[],rccBMG=[],rccPAN=[],rccDAY=[],semRMC2=[],semRCC2=[];
+        for(let r=1;r<rawSheetData.length;r++){
+          const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
+          const rmc=String(row[ri2]||'').trim(); const rcc=String(row[rci2]||'').trim();
+          if(rmc==='318')rmcBMG.push(r); else if(rmc==='623')rmcPAN.push(r); else if(rmc==='707')rmcDAY.push(r); else semRMC2.push(r);
+          if(rcc==='318')rccBMG.push(r); else if(rcc==='623')rccPAN.push(r); else if(rcc==='707')rccDAY.push(r); else semRCC2.push(r);
         }
-      }catch(rmcErr){
-        console.error('RMC/RCC error:',rmcErr);
-        showToast('Aviso: RMC/RCC falhou: '+String(rmcErr.message),'error');
-      }
+        const hdrRow2='<Row ss:Height="20">'+rawHeaders.map(h=>`<Cell ss:StyleID="HRMC"><Data ss:Type="String">${sv2(h)}</Data></Cell>`).join('')+'</Row>';
+        const dataRow2=(row,i)=>{const g=i%2?'g':''; return '<Row>'+row.map(v=>`<Cell ss:StyleID="RT${g}"><Data ss:Type="String">${sv2(v)}</Data></Cell>`).join('')+'</Row>';};
+        const buildWs2=(name,idxArr)=>{
+          const parts=[`<Worksheet ss:Name="${sv2(name)}"><Table ss:DefaultRowHeight="15">`,hdrRow2];
+          idxArr.forEach((ri,i)=>parts.push(dataRow2(rawSheetData[ri],i)));
+          parts.push('</Table></Worksheet>');
+          return parts.join('');
+        };
+        rmcSheets=[
+          buildWs2('RMC BMG',rmcBMG),buildWs2('RMC PAN',rmcPAN),buildWs2('RMC DAYCOVAL',rmcDAY),
+          buildWs2('RCC BMG',rccBMG),buildWs2('RCC PAN',rccPAN),buildWs2('RCC DAYCOVAL',rccDAY),
+          buildWs2('SEM RMC',semRMC2),buildWs2('SEM RCC',semRCC2)
+        ].join('');
+      }catch(e){console.error('RMC/RCC sheets error:',e);}
     }
 
-    // ── MONTAR XML FINAL (14 abas: 4 Fênix + 10 RMC/RCC) ─────────────────
+    // ── MONTAR XML FINAL (13 abas) ────────────────────────────────────────
     const xml=`<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:x="urn:schemas-microsoft-com:office:excel">
-<Styles>${STYLES}${rmcStylesXml}
+<Styles>${STYLES}
 </Styles>
 ${ws1}
 ${ws2}
 ${ws3}
 ${ws4}
-${rmcSheetsXml}
+${ws5}
+${rmcSheets}
 </Workbook>`;
 
     const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'});
@@ -1723,13 +1678,13 @@ ${rmcSheetsXml}
     a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
     const totalEleg=allResults.filter(r=>r.elegivel).length;
-    const rmcInfo=rawSheetData&&rawSheetData.length>1?' | RMC/RCC: '+String(rawSheetData.length-1)+' clientes':'';
-    showToast('Exportado! '+tab1.length+' clientes Fênix'+rmcInfo,'success');
+    showToast('Exportado! '+rowsPorto.length+' clientes | '+totalEleg+' elegíveis','success');
   } catch(err) {
     console.error('Export error:',err);
     showToast('Erro: '+String(err.message||err),'error');
   }
 }
+
 
 
 
