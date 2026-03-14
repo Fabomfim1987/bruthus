@@ -564,10 +564,16 @@ td { padding:10px 14px; white-space:nowrap; }
           PMT Baixa <span class="fbadge" id="fbe-pmt">0</span>
         </button>
       </div>
+      <div class="filtros" style="margin-bottom:10px;gap:10px;align-items:center;">
+        <button class="btn-upload" style="padding:7px 18px;font-size:13px;border-radius:8px;" onclick="selecionarTodos()">☑ Selecionar Todos</button>
+        <button class="filtro-btn" onclick="desselecionarTodos()" style="padding:7px 14px;">✕ Limpar</button>
+        <span id="sel-count" style="font-size:13px;color:var(--silver-dim);">0 selecionados</span>
+      </div>
       <div class="table-wrap">
         <table id="table-elegiveis">
           <thead>
             <tr>
+              <th style="width:36px"><input type="checkbox" id="chk-all" onchange="toggleAll(this.checked)" style="cursor:pointer;width:16px;height:16px;accent-color:var(--blue-glow)"/></th>
               <th>Nome</th>
               <th>CPF</th>
               <th>Idade</th>
@@ -1097,6 +1103,8 @@ function renderTabela() {
   renderPagination('pag-analise',filteredAnalise.length,pagAnalise,p=>{pagAnalise=p;renderTabela();});
 }
 
+let selectedRows=new Set();
+
 function renderElegiveis() {
   const search=(document.getElementById('search-eleg')?.value||'').toLowerCase();
   filteredEleg=allResults.filter(r=>{
@@ -1116,8 +1124,11 @@ function renderElegiveis() {
   const start=(pagEleg-1)*PER_PAGE;
   const page=filteredEleg.slice(start,start+PER_PAGE);
 
-  document.getElementById('tbody-elegiveis').innerHTML=page.map(r=>`
-    <tr>
+  document.getElementById('tbody-elegiveis').innerHTML=page.map((r,i)=>{
+    const idx=start+i;
+    const checked=selectedRows.has(idx)?'checked':'';
+    return `<tr style="${checked?'background:rgba(21,101,192,.2)':''}">
+      <td style="width:36px;text-align:center"><input type="checkbox" ${checked} data-idx="${idx}" onchange="toggleRow(this)" style="cursor:pointer;width:16px;height:16px;accent-color:var(--blue-glow)"/></td>
       <td class="td-name" title="${r.nome}">${r.nome}</td>
       <td class="td-cpf">${maskCPF(r.cpf)}</td>
       <td>${r.idade}</td>
@@ -1130,11 +1141,49 @@ function renderElegiveis() {
       <td class="td-money">R$ ${fmtMoney(r.valorContrato)}</td>
       <td class="td-troco">R$ ${fmtMoney(r.troco)}</td>
       <td class="td-taxa">${r.taxa?.toFixed(2)}%</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
+  updateSelCount();
   renderPagination('pag-elegiveis',filteredEleg.length,pagEleg,p=>{pagEleg=p;renderElegiveis();});
   updateFiltroElegBadges();
+}
+
+function toggleRow(cb) {
+  const idx=parseInt(cb.dataset.idx);
+  if(cb.checked) selectedRows.add(idx);
+  else selectedRows.delete(idx);
+  const tr=cb.closest('tr');
+  tr.style.background=cb.checked?'rgba(21,101,192,.2)':'';
+  updateSelCount();
+}
+
+function toggleAll(checked) {
+  const start=(pagEleg-1)*PER_PAGE;
+  filteredEleg.slice(start,start+PER_PAGE).forEach((_,i)=>{
+    if(checked) selectedRows.add(start+i);
+    else selectedRows.delete(start+i);
+  });
+  renderElegiveis();
+}
+
+function selecionarTodos() {
+  filteredEleg.forEach((_,i)=>selectedRows.add(i));
+  document.getElementById('chk-all').checked=true;
+  renderElegiveis();
+  showToast(filteredEleg.length+' registros selecionados','success');
+}
+
+function desselecionarTodos() {
+  selectedRows.clear();
+  const chk=document.getElementById('chk-all');
+  if(chk) chk.checked=false;
+  renderElegiveis();
+}
+
+function updateSelCount() {
+  const el=document.getElementById('sel-count');
+  if(el) el.textContent=selectedRows.size+' selecionados';
 }
 
 function updateBadges() {
@@ -1208,8 +1257,14 @@ function filtrarElegiveis(){pagEleg=1;renderElegiveis();}
 
 function exportarElegiveis() {
   try {
-    const eleg=allResults.filter(r=>r.elegivel);
-    if(!eleg.length){showToast('Nenhum elegivel para exportar','error');return;}
+    // Use selected rows if any, otherwise all elegíveis
+    let eleg;
+    if(selectedRows.size>0){
+      eleg=Array.from(selectedRows).sort((a,b)=>a-b).map(i=>filteredEleg[i]).filter(Boolean);
+    } else {
+      eleg=allResults.filter(r=>r.elegivel);
+    }
+    if(!eleg.length){showToast('Nenhum registro para exportar','error');return;}
     const rows=eleg.map(r=>({
       'CPF': String(r.cpf||''),
       'Nome': String(r.nome||''),
