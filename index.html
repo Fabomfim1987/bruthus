@@ -1211,22 +1211,33 @@ function exportarElegiveis() {
     const eleg=allResults.filter(r=>r.elegivel);
     if(!eleg.length){showToast('Nenhum elegivel para exportar','error');return;}
     const rows=eleg.map(r=>({
-      'CPF':r.cpf, 'Nome':r.nome, 'Idade':r.idade, 'Especie':r.especie,
-      'Banco Origem':r.bancoOrigem, 'Cod Banco':String(r.bancoCode||''),
-      'Contrato':String(r.contrato||''), 'Parcela':r.parcela,
-      'Saldo Devedor':r.saldo, 'Prazo':r.prazo,
-      'Banco Destino':r.destino, 'Taxa':r.taxa, 'Coeficiente':r.coef,
-      'Valor Contrato':r.valorContrato, 'Troco':r.troco, 'Motivo':r.motivo
+      'CPF': String(r.cpf||''),
+      'Nome': String(r.nome||''),
+      'Idade': String(r.idade||''),
+      'Especie': String(r.especie||''),
+      'Banco Origem': String(r.bancoOrigem||''),
+      'Cod Banco': String(r.bancoCode||''),
+      'Contrato': String(r.contrato||''),
+      'Parcela': Number(r.parcela)||0,
+      'Saldo Devedor': Number(r.saldo)||0,
+      'Prazo': String(r.prazo||''),
+      'Banco Destino': String(r.destino||''),
+      'Taxa': Number(r.taxa)||0,
+      'Coeficiente': Number(r.coef)||0,
+      'Valor Contrato': Number(r.valorContrato)||0,
+      'Troco': Number(r.troco)||0,
+      'Motivo': String(r.motivo||'')
     }));
     const ws=XLSX.utils.json_to_sheet(rows);
     ws['!cols']=Object.keys(rows[0]).map(k=>({wch:Math.max(k.length+2,14)}));
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,'Elegiveis',ws);
-    XLSX.writeFile(wb,'Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xlsx');
-    showToast('Exportados: '+eleg.length+' elegiveis','success');
+    const fname='Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    XLSX.writeFile(wb, fname);
+    showToast('Exportados: '+eleg.length+' elegiveis!','success');
   } catch(err) {
-    console.error(err);
-    showToast('Erro ao exportar: '+err.message,'error');
+    console.error('Export error:', err);
+    showToast('Erro: '+String(err.message),'error');
   }
 }
 
