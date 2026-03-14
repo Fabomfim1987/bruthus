@@ -1265,76 +1265,42 @@ function exportarElegiveis() {
     }
     if(!eleg.length){showToast('Nenhum registro para exportar','error');return;}
 
-    const rows=eleg.map(r=>{
-      const s=v=>v===null||v===undefined?'':String(v);
-      const n=v=>isNaN(parseFloat(v))?0:parseFloat(v);
-      return {
-        'CPF':s(r.cpf),
-        'Nome':s(r.nome),
-        'Idade':s(r.idade),
-        'Especie':s(r.especie),
-        'Banco Origem':s(r.bancoOrigem),
-        'Cod Banco':s(r.bancoCode),
-        'Contrato':s(r.contrato),
-        'Parcela':n(r.parcela),
-        'Saldo Devedor':n(r.saldo),
-        'Prazo':s(r.prazo),
-        'Banco Destino':s(r.destino),
-        'Taxa':n(r.taxa),
-        'Coeficiente':n(r.coef),
-        'Valor Contrato':n(r.valorContrato),
-        'Troco':n(r.troco),
-        'Motivo':s(r.motivo)
-      };
+    // Build CSV - 100% reliable, no library dependency
+    const headers=['CPF','Nome','Idade','Especie','Banco Origem','Cod Banco','Contrato',
+      'Parcela','Saldo Devedor','Prazo','Banco Destino','Taxa','Coeficiente',
+      'Valor Contrato','Troco','Motivo'];
+
+    const esc=v=>{
+      const s=v===null||v===undefined?'':String(v).replace(/"/g,'""');
+      return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s+'"':s;
+    };
+
+    const lines=[headers.join(',')];
+    eleg.forEach(r=>{
+      lines.push([
+        esc(r.cpf), esc(r.nome), esc(r.idade), esc(r.especie),
+        esc(r.bancoOrigem), esc(r.bancoCode), esc(r.contrato),
+        esc(r.parcela), esc(r.saldo), esc(r.prazo),
+        esc(r.destino), esc(r.taxa), esc(r.coef),
+        esc(r.valorContrato), esc(r.troco), esc(r.motivo)
+      ].join(','));
     });
 
-    const ws=XLSX.utils.json_to_sheet(rows);
-    ws['!cols']=Object.keys(rows[0]).map(k=>({wch:Math.max(k.length+2,14)}));
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,'Elegiveis',ws);
-    const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-    const blob=new Blob([wbout],{type:'application/octet-stream'});
+    const csv='\uFEFF'+lines.join('\n'); // BOM for Excel UTF-8
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download='Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    a.download='Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.csv';
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
     showToast('Exportados '+eleg.length+' registros!','success');
   } catch(err) {
     console.error('Export error:',err);
-    showToast('Erro: '+String(err),'error');
+    showToast('Erro ao exportar: '+String(err.message||err),'error');
   }
 }
-
-// ═══════════════════════════════════════════════════════════
-// BUSCA CPF
-// ═══════════════════════════════════════════════════════════
-
-const searchCpf=document.getElementById('search-cpf');
-const searchResults=document.getElementById('search-results');
-
-searchCpf.addEventListener('input',()=>{
-  const q=searchCpf.value.trim().toLowerCase();
-  if(!q||!allResults.length){searchResults.style.display='none';return;}
-  const matches=[...new Map(
-    allResults.filter(r=>String(r.cpf).includes(q)||r.nome.toLowerCase().includes(q))
-    .map(r=>[r.cpf,r])
-  ).values()].slice(0,8);
-  if(!matches.length){searchResults.style.display='none';return;}
-  searchResults.innerHTML=matches.map(r=>`
-    <div class="search-result-item" onclick="showCpfModal('${r.cpf}')">
-      <div class="sri-name">${r.nome}</div>
-      <div class="sri-meta">CPF: ${maskCPF(r.cpf)} · ${r.idade} · ${r.especie?.slice(0,30)}</div>
-    </div>
-  `).join('');
-  searchResults.style.display='block';
-});
-
-document.addEventListener('click',e=>{
-  if(!e.target.closest('.search-wrap'))searchResults.style.display='none';
-});
 
 function showCpfModal(cpf) {
   searchResults.style.display='none';
