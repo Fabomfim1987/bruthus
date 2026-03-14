@@ -1691,8 +1691,7 @@ function exportarElegiveis() {
         const rmc=buildRmcRccXml();
         if(rmc && rmc.styles && rmc.sheets){
           rmcStylesXml=rmc.styles;
-          rmcSheetsXml=rmc.sheets.join('
-');
+          rmcSheetsXml=rmc.sheets.join('\n');
         }
       }catch(rmcErr){
         console.error('RMC/RCC error:',rmcErr);
