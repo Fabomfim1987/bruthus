@@ -871,22 +871,7 @@ function parseExcelDate(v) {
   return null;
 }
 
-// Bank name mapping for RMC/RCC resumo
-const RMC_BANK_MAP={
-  '318':'BMG','623':'PAN','707':'DAYCOVAL','33':'SANTANDER',
-  '465':'QUERO+','389':'MERCANTIL DO BRASIL','934':'BANCO CETELEM',
-  '237':'BRADESCO','935':'FACTA','121':'AGIBANK','104':'CAIXA ECONÔMICA',
-  '41':'BANRISUL','752':'BANCO DO NORDESTE','243':'BANCO MASTER',
-  '903':'BANCO DO BRASIL','999':'DIVERSOS','643':'PINE','422':'SAFRA',
-  '908':'PORTOCRED','254':'PARANÁ BANCO','79':'ORIGINAL','329':'QI TECH',
-  '626':'C6','1':'BANCO DO BRASIL','29':'ITAU','341':'ITAU','81':'BRB',
-  '386':'NU FINANCEIRA','330':'PARATI','359':'ZEMA','748':'SICREDI',
-  '756':'SICOOB','752':'BNP PARIBAS'
-};
-function getRmcBankName(code){
-  const k=String(code||'').trim();
-  return RMC_BANK_MAP[k]||('Banco '+k);
-}
+
 
 function processSheet(wb) {
   const wsName=wb.SheetNames.find(n=>n.includes('MULTI')||n.includes('multi'))||wb.SheetNames[0];
@@ -909,15 +894,9 @@ function processSheet(wb) {
   const dobCol=hIdx['Data Nascimento']??3;
   const especieCol=hIdx['Especie']??13;
   // RMC/RCC columns (0-based): AM=38, AT=45
-  const rmcCol=hIdx['Codigo RMC']??38;
-  const rccCol=hIdx['Codigo RCC']??45;
 
-  // Init RMC/RCC buckets
-  rmcRccData={
-    rmcBMG:[], rmcPAN:[], rmcDAYCOVAL:[],
-    rccBMG:[], rccPAN:[], rccDAYCOVAL:[],
-    semRMC:[], semRCC:[]
-  };
+
+
 
   // Loan blocks start at col AY = index 50 (0-based), stride 10
   const blockStart=50;
@@ -935,17 +914,7 @@ function processSheet(wb) {
     const especieStr=row[especieCol]||'';
     const especieNum=getEspecieNum(especieStr);
 
-    // ── RMC/RCC classification ──
-    const rmcCode=String(row[rmcCol]||'').trim();
-    const rccCode=String(row[rccCol]||'').trim();
-    if(rmcCode==='318')      rmcRccData.rmcBMG.push(r);
-    else if(rmcCode==='623') rmcRccData.rmcPAN.push(r);
-    else if(rmcCode==='707') rmcRccData.rmcDAYCOVAL.push(r);
-    else if(!rmcCode||rmcCode==='null'||rmcCode==='undefined') rmcRccData.semRMC.push(r);
-    if(rccCode==='318')      rmcRccData.rccBMG.push(r);
-    else if(rccCode==='623') rmcRccData.rccPAN.push(r);
-    else if(rccCode==='707') rmcRccData.rccDAYCOVAL.push(r);
-    else if(!rccCode||rccCode==='null'||rccCode==='undefined') rmcRccData.semRCC.push(r);
+
 
     // ── Motor Fênix loan blocks ──
     for(let b=blockStart;b<maxCols;b+=stride){
