@@ -1207,19 +1207,27 @@ function filtrarElegiveis(){pagEleg=1;renderElegiveis();}
 // ═══════════════════════════════════════════════════════════
 
 function exportarElegiveis() {
-  const eleg=allResults.filter(r=>r.elegivel);
-  if(!eleg.length){showToast('Nenhum elegível para exportar','error');return;}
-  const ws=XLSX.utils.json_to_sheet(eleg.map(r=>({
-    'CPF':r.cpf,'Nome':r.nome,'Idade':r.idade,'Espécie':r.especie,
-    'Banco Origem':r.bancoOrigem,'Contrato':r.contrato,
-    'Parcela':r.parcela,'Saldo Devedor':r.saldo,'Prazo':r.prazo,
-    'Banco Destino':r.destino,'Taxa':r.taxa,'Coeficiente':r.coef,
-    'Valor Contrato':r.valorContrato,'Troco':r.troco,'Motivo':r.motivo
-  })));
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,'Elegíveis',ws);
-  XLSX.writeFile(wb,'Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  showToast(`✅ ${eleg.length} elegíveis exportados`,'success');
+  try {
+    const eleg=allResults.filter(r=>r.elegivel);
+    if(!eleg.length){showToast('Nenhum elegivel para exportar','error');return;}
+    const rows=eleg.map(r=>({
+      'CPF':r.cpf, 'Nome':r.nome, 'Idade':r.idade, 'Especie':r.especie,
+      'Banco Origem':r.bancoOrigem, 'Cod Banco':String(r.bancoCode||''),
+      'Contrato':String(r.contrato||''), 'Parcela':r.parcela,
+      'Saldo Devedor':r.saldo, 'Prazo':r.prazo,
+      'Banco Destino':r.destino, 'Taxa':r.taxa, 'Coeficiente':r.coef,
+      'Valor Contrato':r.valorContrato, 'Troco':r.troco, 'Motivo':r.motivo
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=Object.keys(rows[0]).map(k=>({wch:Math.max(k.length+2,14)}));
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,'Elegiveis',ws);
+    XLSX.writeFile(wb,'Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xlsx');
+    showToast('Exportados: '+eleg.length+' elegiveis','success');
+  } catch(err) {
+    console.error(err);
+    showToast('Erro ao exportar: '+err.message,'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
