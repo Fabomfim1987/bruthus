@@ -1266,17 +1266,18 @@ function exportarElegiveis() {
     if(!eleg.length){showToast('Nenhum registro para exportar','error');return;}
 
     const s=v=>(v===null||v===undefined)?'':String(v);
-    const n=v=>{const f=parseFloat(v);return isNaN(f)?0:Math.round(f*100)/100;};
+    const n=v=>{const f=parseFloat(v);return isNaN(f)?0:Math.round(f*100000)/100000;};
+    const esc=v=>s(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    // Build XML SpreadsheetML - opens perfectly in Excel with formatting
-    const bkgColor=(dest)=>{
+    // Cores EXATAS do Motor Fênix
+    const bancoCor=(dest)=>{
       const d=(dest||'').toLowerCase();
-      if(d.includes('finanto'))return 'FFFFF2CC';
-      if(d.includes('brb'))return 'FFDEEAF1';
-      if(d.includes('digio'))return 'FFE2EFDA';
-      if(d.includes('nossa'))return 'FFF4CCFF';
-      if(d.includes('pmt'))return 'FFFCE4D6';
-      return 'FFFFFFFF';
+      if(d.includes('finanto')) return 'FFF2CC';
+      if(d.includes('brb'))     return 'DEEAF1';
+      if(d.includes('digio'))   return 'E2EFDA';
+      if(d.includes('nossa'))   return 'F4CCFF';
+      if(d.includes('pmt'))     return 'FCE4D6';
+      return null;
     };
 
     let xml=`<?xml version="1.0" encoding="UTF-8"?>
@@ -1285,103 +1286,94 @@ function exportarElegiveis() {
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:x="urn:schemas-microsoft-com:office:excel">
 <Styles>
-  <Style ss:ID="header">
+  <Style ss:ID="H">
     <Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/>
     <Interior ss:Color="#1F4E79" ss:Pattern="Solid"/>
     <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-    <Borders>
-      <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/>
-    </Borders>
+    <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders>
   </Style>
-  <Style ss:ID="money">
-    <Font ss:FontName="Arial" ss:Size="9"/>
-    <NumberFormat ss:Format="#,##0.00"/>
-    <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-  </Style>
-  <Style ss:ID="pct">
-    <Font ss:FontName="Arial" ss:Size="9"/>
-    <NumberFormat ss:Format="0.00"/>
-    <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-  </Style>
-  <Style ss:ID="coef">
-    <Font ss:FontName="Arial" ss:Size="9"/>
-    <NumberFormat ss:Format="0.00000"/>
-    <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-  </Style>
-  <Style ss:ID="normal">
-    <Font ss:FontName="Arial" ss:Size="9"/>
-    <Alignment ss:Vertical="Center"/>
-  </Style>
-  <Style ss:ID="finanto"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
-  <Style ss:ID="finanto_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
-  <Style ss:ID="finanto_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-  <Style ss:ID="brb"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
-  <Style ss:ID="brb_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
-  <Style ss:ID="brb_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-  <Style ss:ID="digio"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
-  <Style ss:ID="digio_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
-  <Style ss:ID="digio_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-  <Style ss:ID="nossa"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
-  <Style ss:ID="nossa_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
-  <Style ss:ID="nossa_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-  <Style ss:ID="pmt"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/></Style>
-  <Style ss:ID="pmt_money"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
-  <Style ss:ID="pmt_pct"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+  <Style ss:ID="ES"><Font ss:Bold="1" ss:Color="#375623" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="EN"><Font ss:Bold="1" ss:Color="#9C0006" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF0F0" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Tnone"><Font ss:FontName="Arial" ss:Size="9"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Mnone"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Pnone"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Cnone"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Tgray"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Mgray"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Pgray"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="Cgray"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TFFF2CC"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="MFFF2CC"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="PFFF2CC"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="CFFF2CC"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TDEEAF1"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="MDEEAF1"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="PDEEAF1"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="CDEEAF1"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#DEEAF1" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TE2EFDA"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="ME2EFDA"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="PE2EFDA"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="CE2EFDA"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TF4CCFF"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="MF4CCFF"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="PF4CCFF"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="CF4CCFF"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F4CCFF" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="TFCE4D6"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="MFCE4D6"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="PFCE4D6"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="CFCE4D6"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="0.00000"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
 </Styles>
-<Worksheet ss:Name="Elegiveis">
+<Worksheet ss:Name="Motor Fenix - Resultado">
 <Table ss:DefaultRowHeight="18">
   <Column ss:Width="80"/><Column ss:Width="180"/><Column ss:Width="50"/>
   <Column ss:Width="200"/><Column ss:Width="140"/><Column ss:Width="110"/>
   <Column ss:Width="60"/><Column ss:Width="80"/><Column ss:Width="60"/>
-  <Column ss:Width="100"/><Column ss:Width="55"/><Column ss:Width="60"/>
-  <Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="200"/>
+  <Column ss:Width="100"/><Column ss:Width="55"/><Column ss:Width="65"/>
+  <Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="50"/>
+  <Column ss:Width="200"/>
 <Row ss:Height="28">
-  <Cell ss:StyleID="header"><Data ss:Type="String">CPF</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Nome</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Idade</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Espécie</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Banco Origem</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Contrato</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Parcela</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Saldo Devedor</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Prazo</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Banco Prioritário</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Taxa</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Coeficiente</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Valor Contrato</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Troco</Data></Cell>
-  <Cell ss:StyleID="header"><Data ss:Type="String">Motivo</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">CPF</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Nome</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Idade</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Espécie</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Banco Origem</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Contrato</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Parcela</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Saldo Devedor</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Prazo</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Banco Prioritário</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Taxa Aplicada</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Coeficiente</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Valor Contrato</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Troco</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Elegível</Data></Cell>
+  <Cell ss:StyleID="H"><Data ss:Type="String">Motivo</Data></Cell>
 </Row>`;
 
-    const esc=v=>s(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
-    eleg.forEach(r=>{
-      const d=(s(r.destino)||'').toLowerCase();
-      let base='normal';
-      if(d.includes('finanto'))base='finanto';
-      else if(d.includes('brb'))base='brb';
-      else if(d.includes('digio'))base='digio';
-      else if(d.includes('nossa'))base='nossa';
-      else if(d.includes('pmt'))base='pmt';
-      const m=base+'_money', p=base+'_pct';
+    allResults.forEach((r, idx)=>{
+      const cor = r.elegivel ? (bancoCor(r.destino)||'none') : (idx%2===0?'gray':'none');
+      const T='T'+cor, M='M'+cor, P='P'+cor, C='C'+cor;
+      const elegStyle = r.elegivel ? 'ES' : 'EN';
+      const elegVal = r.elegivel ? 'Sim' : 'Não';
 
       xml+=`
 <Row>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.cpf)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.nome)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.idade)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.especie)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.bancoOrigem)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.contrato)}</Data></Cell>
-  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.parcela)}</Data></Cell>
-  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.saldo)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.prazo)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.destino)}</Data></Cell>
-  <Cell ss:StyleID="${p}"><Data ss:Type="Number">${n(r.taxa)}</Data></Cell>
-  <Cell ss:StyleID="${p}"><Data ss:Type="Number">${n(r.coef)}</Data></Cell>
-  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.valorContrato)}</Data></Cell>
-  <Cell ss:StyleID="${m}"><Data ss:Type="Number">${n(r.troco)}</Data></Cell>
-  <Cell ss:StyleID="${base}"><Data ss:Type="String">${esc(r.motivo)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.cpf)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.nome)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.idade)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.especie)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.bancoOrigem)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.contrato)}</Data></Cell>
+  <Cell ss:StyleID="${M}"><Data ss:Type="Number">${n(r.parcela)}</Data></Cell>
+  <Cell ss:StyleID="${M}"><Data ss:Type="Number">${n(r.saldo)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.prazo)}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.destino)}</Data></Cell>
+  <Cell ss:StyleID="${P}"><Data ss:Type="Number">${n(r.taxa)}</Data></Cell>
+  <Cell ss:StyleID="${C}"><Data ss:Type="Number">${n(r.coef)}</Data></Cell>
+  <Cell ss:StyleID="${M}"><Data ss:Type="Number">${n(r.valorContrato)}</Data></Cell>
+  <Cell ss:StyleID="${M}"><Data ss:Type="Number">${n(r.troco)}</Data></Cell>
+  <Cell ss:StyleID="${elegStyle}"><Data ss:Type="String">${elegVal}</Data></Cell>
+  <Cell ss:StyleID="${T}"><Data ss:Type="String">${esc(r.motivo)}</Data></Cell>
 </Row>`;
     });
 
@@ -1394,16 +1386,19 @@ function exportarElegiveis() {
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download='Bruthus_Elegiveis_'+new Date().toISOString().slice(0,10)+'.xls';
+    a.download='Bruthus_Resultado_'+new Date().toISOString().slice(0,10)+'.xls';
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-    showToast('Exportados '+eleg.length+' registros!','success');
+    const totalEleg=allResults.filter(r=>r.elegivel).length;
+    showToast('Exportados '+totalEleg+' elegíveis de '+allResults.length+' parcelas!','success');
   } catch(err) {
     console.error('Export error:',err);
-    showToast('Erro ao exportar: '+String(err.message||err),'error');
+    showToast('Erro: '+String(err.message||err),'error');
   }
 }
+
+
 
 
 
