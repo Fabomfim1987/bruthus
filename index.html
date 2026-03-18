@@ -719,9 +719,9 @@ function parsePrazo(s) {
   const str = String(s);
   const parts = str.split('/');
   if(parts.length===2) {
-    const rest = parseInt(parts[0].trim());
+    const pagas = parseInt(parts[0].trim());
     const total = parseInt(parts[1].trim());
-    if(!isNaN(rest)&&!isNaN(total)) return [total-rest, total];
+    if(!isNaN(pagas)&&!isNaN(total)) return [pagas, total];
   }
   const n = parseInt(str);
   return [null, isNaN(n)?null:n];
@@ -888,6 +888,9 @@ function parseExcelDate(v) {
     return d;
   }
   if(typeof v==='string'){
+    // Formato brasileiro DD/MM/AAAA
+    const br=v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(br)return new Date(parseInt(br[3]),parseInt(br[2])-1,parseInt(br[1]));
     const d=new Date(v);
     return isNaN(d)?null:d;
   }
