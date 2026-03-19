@@ -105,6 +105,28 @@ header {
   transition: all .2s;
 }
 .btn-nova:hover { background: var(--blue-accent); }
+.btn-datafast {
+  background: linear-gradient(135deg, #f5a623, #f7c26b);
+  color: #000; font-weight:700; font-size:13px;
+  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:6px;
+  transition: all .2s;
+}
+.btn-datafast:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,166,35,.35); }
+.btn-datafast:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.datafast-progress {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background: var(--blue-dark); border:1px solid var(--border);
+  border-radius:12px; padding:14px 24px; z-index:200;
+  min-width:320px; text-align:center; display:none;
+}
+.datafast-progress.show { display:block; }
+.datafast-progress-bar-bg {
+  background: var(--blue-mid); border-radius:4px; height:6px; margin-top:10px;
+}
+.datafast-progress-bar {
+  background: var(--gold); border-radius:4px; height:6px; width:0%; transition:width .3s;
+}
 .file-indicator {
   font-size:12px; color:var(--silver-dim);
   max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -462,12 +484,24 @@ td { padding:10px 14px; white-space:nowrap; }
 
   <div class="header-right">
     <span class="file-indicator" id="file-indicator"></span>
+    <button class="btn-datafast" id="btn-datafast" disabled onclick="consultarDatafastBMG()">
+      ⚡ Saque BMG
+    </button>
     <button class="btn-export" id="btn-export" disabled onclick="exportarElegiveis()">
       ⬇ Exportar
     </button>
     <button class="btn-nova" onclick="novaBase()">Nova Base</button>
   </div>
 </header>
+
+<!-- DATAFAST PROGRESS -->
+<div class="datafast-progress" id="datafast-progress">
+  <div style="font-size:13px;font-weight:600;color:var(--gold)" id="datafast-progress-text">Consultando Datafast...</div>
+  <div style="font-size:11px;color:var(--text-dim);margin-top:4px" id="datafast-progress-sub"></div>
+  <div class="datafast-progress-bar-bg">
+    <div class="datafast-progress-bar" id="datafast-progress-bar"></div>
+  </div>
+</div>
 
 <!-- TABS -->
 <div class="tabs" id="tabs">
@@ -1047,6 +1081,7 @@ function renderAll(fileName) {
   document.getElementById('tabs').style.display='flex';
   document.getElementById('file-indicator').textContent='📄 '+fileName;
   document.getElementById('btn-export').disabled=false;
+  document.getElementById('btn-datafast').disabled=false;
 
   renderDashboard();
   renderTabela();
@@ -1882,6 +1917,8 @@ function novaBase() {
   document.getElementById('tabs').style.display='none';
   document.getElementById('screen-upload').style.display='flex';
   document.getElementById('btn-export').disabled=true;
+  document.getElementById('btn-datafast').disabled=true;
+  datafastResultsBMG={};
   document.getElementById('file-indicator').textContent='';
   document.getElementById('file-input').value='';
 }
@@ -1910,6 +1947,223 @@ function destinoClass(d) {
   if(dl.includes('pmt'))return'pmt';
   return'';
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// DATAFAST — INTEGRAÇÃO SAQUE BMG (RMC/RCC)
+// ═══════════════════════════════════════════════════════════
+
+// Armazena resultados da Datafast por CPF
+let datafastResultsBMG = {};
+
+// Convênios a tentar em ordem
+const CONVENIOS_BMG = ['INSS', '304', 'inss', ''];
+
+async function chamarDatafastBMG(cpf, matricula, valorParcela) {
+  const PROXY = '/api/datafast';
+  const cpfLimpo = String(cpf).replace(/\D/g, '').padStart(11, '0');
+
+  for (const convenio of CONVENIOS_BMG) {
+    try {
+      const res = await fetch(PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: '/v1/bmgconsig/saquecartao',
+          body: {
+            convenio: convenio,
+            cpf: cpfLimpo,
+            matricula: String(matricula || ''),
+            valorParcela: parseFloat(valorParcela) || 0,
+            dadosCadastrais: true
+          }
+        })
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      // Tenta extrair limite de saque do retorno
+      const limite = extrairLimiteSaque(data);
+      if (limite !== null) return { cpf: cpfLimpo, limite, raw: data, convenio };
+    } catch(e) { continue; }
+  }
+  return { cpf: String(cpf), limite: null, raw: null, convenio: null };
+}
+
+function extrairLimiteSaque(data) {
+  if (!data) return null;
+  // Campos comuns de retorno de APIs de saque
+  const campos = [
+    'limiteSaque', 'limite_saque', 'valorSaque', 'valor_saque',
+    'limiteDisponivel', 'limite_disponivel', 'saldoDisponivel',
+    'saldo_disponivel', 'valorDisponivel', 'valor_disponivel',
+    'limiteCreditoDisponivel', 'vlrLimiteSaque', 'vlrSaque'
+  ];
+  for (const c of campos) {
+    if (data[c] !== undefined && data[c] !== null) {
+      const v = parseFloat(data[c]);
+      if (!isNaN(v)) return v;
+    }
+  }
+  // Busca recursiva no primeiro nível de objetos aninhados
+  for (const key of Object.keys(data)) {
+    if (typeof data[key] === 'object' && data[key] !== null) {
+      const v = extrairLimiteSaque(data[key]);
+      if (v !== null) return v;
+    }
+  }
+  return null;
+}
+
+async function consultarDatafastBMG() {
+  if (!rawSheetData || rawSheetData.length < 2) {
+    showToast('Carregue uma base primeiro', 'error'); return;
+  }
+
+  const headers = rawHeaders;
+  const rmcColIdx = headers.findIndex(h => String(h||'').trim() === 'Codigo RMC');
+  const rccColIdx = headers.findIndex(h => String(h||'').trim() === 'Codigo RCC');
+  const rmc_i = rmcColIdx >= 0 ? rmcColIdx : 38;
+  const rcc_i = rccColIdx >= 0 ? rccColIdx : 45;
+  const cpfCol = 0;
+
+  // Coleta CPFs únicos com código BMG (318)
+  const cpfSet = new Map(); // cpf -> { matricula, valorParcela }
+  for (let r = 1; r < rawSheetData.length; r++) {
+    const row = rawSheetData[r];
+    if (!row || (!row[0] && !row[1] && !row[2])) continue;
+    const rmc = String(row[rmc_i] || '').trim();
+    const rcc = String(row[rcc_i] || '').trim();
+    if (rmc === '318' || rcc === '318') {
+      const cpf = String(int_float_cpf(row[cpfCol]));
+      if (!cpfSet.has(cpf)) {
+        // Tenta pegar matricula (col 4 ou 5) e parcela (col do bloco de empréstimos)
+        const matricula = row[4] || row[5] || '';
+        const valorParcela = 0;
+        cpfSet.set(cpf, { matricula, valorParcela, rowIdx: r });
+      }
+    }
+  }
+
+  const cpfs = Array.from(cpfSet.entries());
+  if (!cpfs.length) {
+    showToast('Nenhum cliente BMG (RMC/RCC) encontrado na base', 'error'); return;
+  }
+
+  // UI
+  document.getElementById('btn-datafast').disabled = true;
+  const prog = document.getElementById('datafast-progress');
+  const progText = document.getElementById('datafast-progress-text');
+  const progSub = document.getElementById('datafast-progress-sub');
+  const progBar = document.getElementById('datafast-progress-bar');
+  prog.classList.add('show');
+
+  datafastResultsBMG = {};
+  let done = 0, erros = 0;
+
+  for (const [cpf, info] of cpfs) {
+    progText.textContent = `Consultando Datafast BMG... (${done+1}/${cpfs.length})`;
+    progSub.textContent = `CPF: ***.***.${cpf.slice(6,9)}-${cpf.slice(9)} | Erros: ${erros}`;
+    progBar.style.width = `${Math.round((done / cpfs.length) * 100)}%`;
+
+    const res = await chamarDatafastBMG(cpf, info.matricula, info.valorParcela);
+    datafastResultsBMG[cpf] = res;
+    if (res.limite === null) erros++;
+    done++;
+
+    // Pequena pausa para não sobrecarregar a API
+    await new Promise(r => setTimeout(r, 120));
+  }
+
+  progBar.style.width = '100%';
+  const encontrados = Object.values(datafastResultsBMG).filter(r => r.limite !== null).length;
+  progText.textContent = `✅ Concluído — ${encontrados}/${cpfs.length} com limite encontrado`;
+  progSub.textContent = erros > 0 ? `${erros} CPFs sem retorno (convenio/matrícula podem ser necessários)` : 'Todos consultados com sucesso';
+
+  setTimeout(() => {
+    prog.classList.remove('show');
+    document.getElementById('btn-datafast').disabled = false;
+  }, 4000);
+
+  showToast(`Datafast BMG: ${encontrados} limites obtidos`, encontrados > 0 ? 'success' : 'error');
+
+  // Se tiver retorno raw no primeiro resultado, mostra no console para diagnóstico
+  const primeiro = Object.values(datafastResultsBMG).find(r => r.raw);
+  if (primeiro) console.log('[Datafast] Exemplo de retorno raw:', JSON.stringify(primeiro.raw, null, 2));
+}
+
+function int_float_cpf(v) {
+  if (!v && v !== 0) return '';
+  try { return String(parseInt(parseFloat(String(v)))).padStart(11, '0'); }
+  catch(e) { return String(v); }
+}
+
+// Patch no buildRmcRccXml para injetar coluna Limite Saque BMG
+const _origBuildRmcRccXml = buildRmcRccXml;
+function buildRmcRccXml() {
+  const result = _origBuildRmcRccXml();
+  if (!result) return result;
+  if (!Object.keys(datafastResultsBMG).length) return result;
+
+  // Injeta coluna Limite Saque BMG nas abas RMC BMG e RCC BMG
+  result.sheets = result.sheets.map(ws => injetarColunaSaqueBMG(ws));
+  return result;
+}
+
+function injetarColunaSaqueBMG(wsXml) {
+  if (!wsXml.includes('ss:Name="RMC BMG"') && !wsXml.includes('ss:Name="RCC BMG"')) return wsXml;
+
+  // Adiciona header da coluna nova
+  wsXml = wsXml.replace(
+    /(<\/Row>\s*)((?:<Row>|<Row ss:Height))/,
+    '$1$2'
+  );
+
+  // Estratégia: adicionar a coluna no cabeçalho e nos dados via regex nas rows
+  // Header: adicionar célula "Limite Saque BMG" após última célula do header
+  wsXml = wsXml.replace(
+    /(<Row ss:Height="22">)(.*?)(<\/Row>)/s,
+    (m, open, cells, close) => {
+      return open + cells + '<Cell ss:StyleID="HRMC"><Data ss:Type="String">Limite Saque BMG (R$)</Data></Cell>' + close;
+    }
+  );
+
+  // Dados: para cada linha de dados, adicionar célula com limite do CPF
+  // CPF está na primeira célula de dados (índice 0)
+  const cpfPattern = /<Row>.*?<Cell[^>]*><Data[^>]*>(\d{11})<\/Data><\/Cell>/g;
+  
+  // Abordagem mais simples: processar linha por linha
+  const linhas = wsXml.split('
+');
+  const novasLinhas = [];
+  let isHeader = true;
+
+  for (const linha of linhas) {
+    if (isHeader && linha.includes('ss:Height="22"')) {
+      isHeader = false;
+      novasLinhas.push(linha);
+      continue;
+    }
+    if (!isHeader && linha.includes('<Row>')) {
+      // Extrai CPF desta linha se possível
+      const cpfMatch = linha.match(/<Data[^>]*>(\d{9,11})<\/Data>/);
+      if (cpfMatch) {
+        const cpf = cpfMatch[1].padStart(11, '0');
+        const info = datafastResultsBMG[cpf];
+        const limite = info?.limite;
+        const celula = limite !== null && limite !== undefined
+          ? `<Cell ss:StyleID="RT"><Data ss:Type="Number">${limite.toFixed(2)}</Data></Cell>`
+          : `<Cell ss:StyleID="RT"><Data ss:Type="String">—</Data></Cell>`;
+        novasLinhas.push(linha.replace('</Row>', celula + '</Row>'));
+        continue;
+      }
+    }
+    novasLinhas.push(linha);
+  }
+
+  return novasLinhas.join('
+');
+}
+
 
 // Init
 renderHistorico();
