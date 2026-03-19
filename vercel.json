@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/datafast.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "rewrites": [
     { "source": "/api/datafast", "destination": "/api/datafast.js" }
   ]
