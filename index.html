@@ -439,8 +439,7 @@ td { padding:10px 14px; white-space:nowrap; }
   background: linear-gradient(135deg, #f5a623, #f7c26b);
   color: #000; font-weight:700; font-size:13px;
   padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
-  display:flex; align-items:center; gap:6px;
-  transition: all .2s;
+  display:flex; align-items:center; gap:6px; transition: all .2s;
 }
 .btn-datafast:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,166,35,.35); }
 .btn-datafast:disabled { opacity:.4; cursor:not-allowed; transform:none; }
@@ -451,12 +450,8 @@ td { padding:10px 14px; white-space:nowrap; }
   min-width:320px; text-align:center; display:none;
 }
 .datafast-progress.show { display:block; }
-.datafast-progress-bar-bg {
-  background: var(--blue-mid); border-radius:4px; height:6px; margin-top:10px;
-}
-.datafast-progress-bar {
-  background: var(--gold); border-radius:4px; height:6px; width:0%; transition:width .3s;
-}
+.datafast-progress-bar-bg { background: var(--blue-mid); border-radius:4px; height:6px; margin-top:10px; }
+.datafast-progress-bar { background: var(--gold); border-radius:4px; height:6px; width:0%; transition:width .3s; }
 </style>
 </head>
 <body>
@@ -488,13 +483,10 @@ td { padding:10px 14px; white-space:nowrap; }
   </div>
 </header>
 
-<!-- DATAFAST PROGRESS -->
 <div class="datafast-progress" id="datafast-progress">
   <div style="font-size:13px;font-weight:600;color:var(--gold)" id="datafast-progress-text">Consultando Datafast...</div>
   <div style="font-size:11px;color:var(--text-dim);margin-top:4px" id="datafast-progress-sub"></div>
-  <div class="datafast-progress-bar-bg">
-    <div class="datafast-progress-bar" id="datafast-progress-bar"></div>
-  </div>
+  <div class="datafast-progress-bar-bg"><div class="datafast-progress-bar" id="datafast-progress-bar"></div></div>
 </div>
 
 <!-- TABS -->
@@ -1912,7 +1904,7 @@ function novaBase() {
   document.getElementById('screen-upload').style.display='flex';
   document.getElementById('btn-export').disabled=true;
   document.getElementById('btn-datafast').disabled=true;
-  datafastResultsBMG={};
+  if(typeof datafastResultsBMG!=='undefined')datafastResultsBMG={};
   document.getElementById('file-indicator').textContent='';
   document.getElementById('file-input').value='';
 }
@@ -1944,146 +1936,128 @@ function destinoClass(d) {
 
 
 // ═══════════════════════════════════════════════════════════
-// DATAFAST — INTEGRAÇÃO SAQUE BMG (RMC/RCC)
+// DATAFAST — INTEGRAÇÃO SAQUE BMG
 // ═══════════════════════════════════════════════════════════
-
 let datafastResultsBMG = {};
-const CONVENIOS_BMG = ['INSS', '304', ''];
 
-function int_float_cpf(v) {
-  if (!v && v !== 0) return '';
-  try { return String(parseInt(parseFloat(String(v)))).padStart(11, '0'); }
+function cpfLimpo(v) {
+  try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); }
   catch(e) { return String(v).replace(/\D/g,'').padStart(11,'0'); }
 }
 
 async function chamarDatafastBMG(cpf, matricula, valorParcela) {
-  const cpfLimpo = String(cpf).replace(/\D/g, '').padStart(11, '0');
-  for (const convenio of CONVENIOS_BMG) {
+  const c = cpfLimpo(cpf);
+  for (const convenio of ['INSS','304','']) {
     try {
       const res = await fetch('/api/datafast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          endpoint: '/v1/bmgconsig/saquecartao',
-          body: { convenio, cpf: cpfLimpo, matricula: String(matricula||''), valorParcela: parseFloat(valorParcela)||0, dadosCadastrais: true }
+          endpoint:'/v1/bmgconsig/saquecartao',
+          body:{convenio, cpf:c, matricula:String(matricula||''), valorParcela:parseFloat(valorParcela)||0, dadosCadastrais:true}
         })
       });
-      if (!res.ok) continue;
+      if(!res.ok) continue;
       const data = await res.json();
-      const limite = extrairLimiteSaque(data);
-      if (limite !== null) return { cpf: cpfLimpo, limite, raw: data, convenio };
+      const limite = extrairLimite(data);
+      if(limite !== null) return {cpf:c, limite, raw:data, convenio};
     } catch(e) { continue; }
   }
-  return { cpf: String(cpf), limite: null, raw: null };
+  return {cpf:String(cpf), limite:null, raw:null};
 }
 
-function extrairLimiteSaque(data) {
-  if (!data) return null;
-  const campos = ['limiteSaque','limite_saque','valorSaque','valor_saque','limiteDisponivel','limite_disponivel','saldoDisponivel','saldo_disponivel','valorDisponivel','valor_disponivel','limiteCreditoDisponivel','vlrLimiteSaque','vlrSaque'];
-  for (const c of campos) {
-    if (data[c] !== undefined && data[c] !== null) {
+function extrairLimite(data) {
+  if(!data) return null;
+  const campos = ['limiteSaque','limite_saque','valorSaque','valor_saque','limiteDisponivel',
+    'limite_disponivel','saldoDisponivel','saldo_disponivel','valorDisponivel',
+    'valor_disponivel','limiteCreditoDisponivel','vlrLimiteSaque','vlrSaque'];
+  for(const c of campos) {
+    if(data[c]!==undefined && data[c]!==null) {
       const v = parseFloat(data[c]);
-      if (!isNaN(v)) return v;
+      if(!isNaN(v)) return v;
     }
   }
-  for (const key of Object.keys(data)) {
-    if (typeof data[key] === 'object' && data[key] !== null && !Array.isArray(data[key])) {
-      const v = extrairLimiteSaque(data[key]);
-      if (v !== null) return v;
+  for(const key of Object.keys(data)) {
+    if(typeof data[key]==='object' && data[key]!==null && !Array.isArray(data[key])) {
+      const v = extrairLimite(data[key]);
+      if(v!==null) return v;
     }
   }
   return null;
 }
 
 async function consultarDatafastBMG() {
-  if (!rawSheetData || rawSheetData.length < 2) { showToast('Carregue uma base primeiro','error'); return; }
-  const headers = rawHeaders;
-  const rmc_i = headers.findIndex(h=>String(h||'').trim()==='Codigo RMC');
-  const rcc_i = headers.findIndex(h=>String(h||'').trim()==='Codigo RCC');
-  const ri = rmc_i >= 0 ? rmc_i : 38;
-  const ci = rcc_i >= 0 ? rcc_i : 45;
-
+  if(!rawSheetData||rawSheetData.length<2){showToast('Carregue uma base primeiro','error');return;}
+  const ri = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+  const ci = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+  const rIdx = ri>=0?ri:38;
+  const cIdx = ci>=0?ci:45;
   const cpfMap = new Map();
-  for (let r = 1; r < rawSheetData.length; r++) {
-    const row = rawSheetData[r];
-    if (!row || (!row[0]&&!row[1]&&!row[2])) continue;
-    const rmc = String(row[ri]||'').trim();
-    const rcc = String(row[ci]||'').trim();
-    if (rmc === '318' || rcc === '318') {
-      const cpf = int_float_cpf(row[0]);
-      if (!cpfMap.has(cpf)) cpfMap.set(cpf, { matricula: row[4]||row[5]||'', valorParcela: 0 });
+  for(let r=1;r<rawSheetData.length;r++){
+    const row=rawSheetData[r];
+    if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
+    const rmc=String(row[rIdx]||'').trim();
+    const rcc=String(row[cIdx]||'').trim();
+    if(rmc==='318'||rcc==='318'){
+      const cpf=cpfLimpo(row[0]);
+      if(!cpfMap.has(cpf))cpfMap.set(cpf,{matricula:row[4]||row[5]||''});
     }
   }
-
-  const cpfs = Array.from(cpfMap.entries());
-  if (!cpfs.length) { showToast('Nenhum cliente BMG na base','error'); return; }
-
-  document.getElementById('btn-datafast').disabled = true;
-  const prog = document.getElementById('datafast-progress');
-  const progText = document.getElementById('datafast-progress-text');
-  const progSub = document.getElementById('datafast-progress-sub');
-  const progBar = document.getElementById('datafast-progress-bar');
+  const cpfs=Array.from(cpfMap.entries());
+  if(!cpfs.length){showToast('Nenhum cliente BMG na base','error');return;}
+  document.getElementById('btn-datafast').disabled=true;
+  const prog=document.getElementById('datafast-progress');
+  const pText=document.getElementById('datafast-progress-text');
+  const pSub=document.getElementById('datafast-progress-sub');
+  const pBar=document.getElementById('datafast-progress-bar');
   prog.classList.add('show');
-  datafastResultsBMG = {};
-
-  let done = 0, erros = 0;
-  for (const [cpf, info] of cpfs) {
-    progText.textContent = `Consultando Datafast BMG... (${done+1}/${cpfs.length})`;
-    progSub.textContent = `CPF: ***.***.${cpf.slice(6,9)}-${cpf.slice(9)} | Erros: ${erros}`;
-    progBar.style.width = `${Math.round((done/cpfs.length)*100)}%`;
-    const res = await chamarDatafastBMG(cpf, info.matricula, info.valorParcela);
-    datafastResultsBMG[cpf] = res;
-    if (res.limite === null) erros++;
+  datafastResultsBMG={};
+  let done=0, erros=0;
+  for(const [cpf,info] of cpfs){
+    pText.textContent=`Consultando Datafast BMG... (${done+1}/${cpfs.length})`;
+    pSub.textContent=`CPF: ***.***.${cpf.slice(6,9)}-${cpf.slice(9)} | Erros: ${erros}`;
+    pBar.style.width=`${Math.round((done/cpfs.length)*100)}%`;
+    const res=await chamarDatafastBMG(cpf,info.matricula,0);
+    datafastResultsBMG[cpf]=res;
+    if(res.limite===null)erros++;
     done++;
     await new Promise(r=>setTimeout(r,120));
   }
-
-  progBar.style.width = '100%';
-  const ok = Object.values(datafastResultsBMG).filter(r=>r.limite!==null).length;
-  progText.textContent = `Concluído — ${ok}/${cpfs.length} com limite encontrado`;
-  progSub.textContent = erros > 0 ? `${erros} CPFs sem retorno` : 'Todos consultados';
-
-  const primeiro = Object.values(datafastResultsBMG).find(r=>r.raw);
-  if (primeiro) console.log('[Datafast] Retorno exemplo:', JSON.stringify(primeiro.raw, null, 2));
-
-  setTimeout(()=>{ prog.classList.remove('show'); document.getElementById('btn-datafast').disabled=false; }, 4000);
-  showToast(`Datafast BMG: ${ok} limites obtidos`, ok>0?'success':'error');
+  pBar.style.width='100%';
+  const ok=Object.values(datafastResultsBMG).filter(r=>r.limite!==null).length;
+  pText.textContent=`Concluído — ${ok}/${cpfs.length} com limite encontrado`;
+  pSub.textContent=erros>0?`${erros} CPFs sem retorno`:'Todos consultados';
+  const ex=Object.values(datafastResultsBMG).find(r=>r.raw);
+  if(ex)console.log('[Datafast] Retorno exemplo:',JSON.stringify(ex.raw,null,2));
+  setTimeout(()=>{prog.classList.remove('show');document.getElementById('btn-datafast').disabled=false;},4000);
+  showToast(`Datafast BMG: ${ok} limites obtidos`,ok>0?'success':'error');
 }
 
-const _origBuildRmcRccXml = buildRmcRccXml;
+const _origBuild = buildRmcRccXml;
 function buildRmcRccXml() {
-  const result = _origBuildRmcRccXml();
-  if (!result || !Object.keys(datafastResultsBMG).length) return result;
-  result.sheets = result.sheets.map(ws => injetarColunaSaqueBMG(ws));
+  const result = _origBuild();
+  if(!result||!Object.keys(datafastResultsBMG).length) return result;
+  result.sheets = result.sheets.map(ws => injetarColunaBMG(ws));
   return result;
 }
 
-function injetarColunaSaqueBMG(wsXml) {
-  if (!wsXml.includes('ss:Name="RMC BMG"') && !wsXml.includes('ss:Name="RCC BMG"')) return wsXml;
+function injetarColunaBMG(wsXml) {
+  if(!wsXml.includes('ss:Name="RMC BMG"')&&!wsXml.includes('ss:Name="RCC BMG"')) return wsXml;
   wsXml = wsXml.replace(
-    /(<Row ss:Height="22">)(.*?)(<\/Row>)/s,
+    /(<Row ss:Height="22">)([\s\S]*?)(<\/Row>)/,
     (m,o,c,e)=>o+c+'<Cell ss:StyleID="HRMC"><Data ss:Type="String">Limite Saque BMG (R$)</Data></Cell>'+e
   );
-  const linhas = wsXml.split('\n');
-  const novas = [];
-  let isHeader = true;
-  for (const l of linhas) {
-    if (isHeader && l.includes('ss:Height="22"')) { isHeader=false; novas.push(l); continue; }
-    if (!isHeader && l.includes('<Row>')) {
-      const m = l.match(/<Data[^>]*>(\d{9,11})<\/Data>/);
-      if (m) {
-        const cpf = m[1].padStart(11,'0');
-        const info = datafastResultsBMG[cpf];
-        const lim = info?.limite;
-        const cel = (lim!==null&&lim!==undefined)
-          ? `<Cell ss:StyleID="RT"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
-          : `<Cell ss:StyleID="RT"><Data ss:Type="String">-</Data></Cell>`;
-        novas.push(l.replace('</Row>', cel+'</Row>')); continue;
-      }
-    }
-    novas.push(l);
-  }
-  return novas.join('\n');
+  return wsXml.replace(/<Row>([\s\S]*?)<\/Row>/g, function(row) {
+    const m = row.match(/<Data[^>]*>(\d{9,11})<\/Data>/);
+    if(!m) return row;
+    const cpf = m[1].padStart(11,'0');
+    const info = datafastResultsBMG[cpf];
+    const lim = info && info.limite !== null ? info.limite : null;
+    const cel = lim!==null
+      ? `<Cell ss:StyleID="RT"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
+      : `<Cell ss:StyleID="RT"><Data ss:Type="String">-</Data></Cell>`;
+    return row.replace('</Row>', cel+'</Row>');
+  });
 }
 
 // Init
