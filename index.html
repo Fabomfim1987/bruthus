@@ -443,15 +443,24 @@ td { padding:10px 14px; white-space:nowrap; }
 }
 .btn-datafast:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,166,35,.35); }
 .btn-datafast:disabled { opacity:.4; cursor:not-allowed; transform:none; }
-.datafast-progress {
-  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-  background: var(--blue-dark); border:1px solid var(--border);
-  border-radius:12px; padding:14px 24px; z-index:200;
-  min-width:320px; text-align:center; display:none;
+.df-overlay {
+  position:fixed; inset:0; background:rgba(10,22,40,.82);
+  z-index:300; display:none; align-items:center; justify-content:center;
 }
-.datafast-progress.show { display:block; }
-.datafast-progress-bar-bg { background: var(--blue-mid); border-radius:4px; height:6px; margin-top:10px; }
-.datafast-progress-bar { background: var(--gold); border-radius:4px; height:6px; width:0%; transition:width .3s; }
+.df-overlay.show { display:flex; }
+.df-box {
+  background:var(--blue-dark); border:1px solid var(--border);
+  border-radius:16px; padding:32px 40px; min-width:380px; text-align:center;
+}
+.df-title { font-size:16px; font-weight:700; color:var(--gold); margin-bottom:6px; }
+.df-sub { font-size:13px; color:var(--text-dim); margin-bottom:18px; min-height:18px; }
+.df-bar-bg { background:var(--blue-mid); border-radius:4px; height:8px; }
+.df-bar { background:var(--gold); border-radius:4px; height:8px; width:0%; transition:width .3s; }
+.df-stats { display:flex; gap:24px; justify-content:center; margin-top:16px; }
+.df-stat { text-align:center; }
+.df-stat-val { font-size:22px; font-weight:700; color:var(--green); }
+.df-stat-val.red { color:var(--red); }
+.df-stat-lbl { font-size:11px; color:var(--text-dim); margin-top:2px; }
 </style>
 </head>
 <body>
@@ -483,10 +492,17 @@ td { padding:10px 14px; white-space:nowrap; }
   </div>
 </header>
 
-<div class="datafast-progress" id="datafast-progress">
-  <div style="font-size:13px;font-weight:600;color:var(--gold)" id="datafast-progress-text">Consultando Datafast...</div>
-  <div style="font-size:11px;color:var(--text-dim);margin-top:4px" id="datafast-progress-sub"></div>
-  <div class="datafast-progress-bar-bg"><div class="datafast-progress-bar" id="datafast-progress-bar"></div></div>
+<div class="df-overlay" id="df-overlay">
+  <div class="df-box">
+    <div class="df-title" id="df-title">⚡ Consultando Datafast BMG...</div>
+    <div class="df-sub" id="df-sub">Iniciando...</div>
+    <div class="df-bar-bg"><div class="df-bar" id="df-bar"></div></div>
+    <div class="df-stats">
+      <div class="df-stat"><div class="df-stat-val" id="df-ok">0</div><div class="df-stat-lbl">Com limite</div></div>
+      <div class="df-stat"><div class="df-stat-val" id="df-sem">0</div><div class="df-stat-lbl">Sem limite</div></div>
+      <div class="df-stat"><div class="df-stat-val red" id="df-err">0</div><div class="df-stat-lbl">Erros</div></div>
+    </div>
+  </div>
 </div>
 
 <!-- TABS -->
@@ -1936,127 +1952,156 @@ function destinoClass(d) {
 
 
 // ═══════════════════════════════════════════════════════════
-// DATAFAST — INTEGRAÇÃO SAQUE BMG
+// DATAFAST — SAQUE BMG (RMC/RCC)
 // ═══════════════════════════════════════════════════════════
 let datafastResultsBMG = {};
 
-function cpfLimpo(v) {
+function cpfFmt(v) {
   try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); }
   catch(e) { return String(v).replace(/\D/g,'').padStart(11,'0'); }
 }
 
-async function chamarDatafastBMG(cpf, matricula, valorParcela) {
-  const c = cpfLimpo(cpf);
-  for (const convenio of ['INSS','304','']) {
-    try {
-      const res = await fetch('/api/datafast', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          endpoint:'/v1/bmgconsig/saquecartao',
-          body:{convenio, cpf:c, matricula:String(matricula||''), valorParcela:parseFloat(valorParcela)||0, dadosCadastrais:true}
-        })
-      });
-      if(!res.ok) continue;
-      const data = await res.json();
-      const limite = extrairLimite(data);
-      if(limite !== null) return {cpf:c, limite, raw:data, convenio};
-    } catch(e) { continue; }
-  }
-  return {cpf:String(cpf), limite:null, raw:null};
-}
-
 function extrairLimite(data) {
-  if(!data) return null;
-  const campos = ['limiteSaque','limite_saque','valorSaque','valor_saque','limiteDisponivel',
-    'limite_disponivel','saldoDisponivel','saldo_disponivel','valorDisponivel',
-    'valor_disponivel','limiteCreditoDisponivel','vlrLimiteSaque','vlrSaque'];
-  for(const c of campos) {
-    if(data[c]!==undefined && data[c]!==null) {
-      const v = parseFloat(data[c]);
-      if(!isNaN(v)) return v;
+  if (!data) return null;
+  // Tenta campos diretos
+  const campos = ['sc_limite_saque_disponivel','limiteSaque','limite_saque','valorSaque',
+    'valor_saque','limiteDisponivel','limite_disponivel','saldoDisponivel',
+    'saldo_disponivel','valorDisponivel','valor_disponivel','vlrLimiteSaque'];
+  for (const c of campos) {
+    if (data[c] !== undefined && data[c] !== null && data[c] !== '') {
+      const v = parseFloat(String(data[c]).replace(',','.'));
+      if (!isNaN(v) && v > 0) return v;
     }
   }
-  for(const key of Object.keys(data)) {
-    if(typeof data[key]==='object' && data[key]!==null && !Array.isArray(data[key])) {
+  // Busca recursiva 1 nível
+  for (const key of Object.keys(data)) {
+    if (typeof data[key] === 'object' && data[key] !== null && !Array.isArray(data[key])) {
       const v = extrairLimite(data[key]);
-      if(v!==null) return v;
+      if (v !== null) return v;
     }
   }
   return null;
 }
 
 async function consultarDatafastBMG() {
-  if(!rawSheetData||rawSheetData.length<2){showToast('Carregue uma base primeiro','error');return;}
+  if (!rawSheetData || rawSheetData.length < 2) {
+    showToast('Carregue uma base primeiro','error'); return;
+  }
   const ri = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
   const ci = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
-  const rIdx = ri>=0?ri:38;
-  const cIdx = ci>=0?ci:45;
-  const cpfMap = new Map();
-  for(let r=1;r<rawSheetData.length;r++){
-    const row=rawSheetData[r];
-    if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
-    const rmc=String(row[rIdx]||'').trim();
-    const rcc=String(row[cIdx]||'').trim();
-    if(rmc==='318'||rcc==='318'){
-      const cpf=cpfLimpo(row[0]);
-      if(!cpfMap.has(cpf))cpfMap.set(cpf,{matricula:row[4]||row[5]||''});
+  const rIdx = ri >= 0 ? ri : 38;
+  const cIdx = ci >= 0 ? ci : 45;
+
+  // Coleta CPFs únicos com BMG (318)
+  const cpfSet = new Set();
+  for (let r = 1; r < rawSheetData.length; r++) {
+    const row = rawSheetData[r];
+    if (!row || (!row[0]&&!row[1]&&!row[2])) continue;
+    if (String(row[rIdx]||'').trim()==='318' || String(row[cIdx]||'').trim()==='318') {
+      cpfSet.add(cpfFmt(row[0]));
     }
   }
-  const cpfs=Array.from(cpfMap.entries());
-  if(!cpfs.length){showToast('Nenhum cliente BMG na base','error');return;}
-  document.getElementById('btn-datafast').disabled=true;
-  const prog=document.getElementById('datafast-progress');
-  const pText=document.getElementById('datafast-progress-text');
-  const pSub=document.getElementById('datafast-progress-sub');
-  const pBar=document.getElementById('datafast-progress-bar');
-  prog.classList.add('show');
-  datafastResultsBMG={};
-  let done=0, erros=0;
-  for(const [cpf,info] of cpfs){
-    pText.textContent=`Consultando Datafast BMG... (${done+1}/${cpfs.length})`;
-    pSub.textContent=`CPF: ***.***.${cpf.slice(6,9)}-${cpf.slice(9)} | Erros: ${erros}`;
-    pBar.style.width=`${Math.round((done/cpfs.length)*100)}%`;
-    const res=await chamarDatafastBMG(cpf,info.matricula,0);
-    datafastResultsBMG[cpf]=res;
-    if(res.limite===null)erros++;
-    done++;
-    await new Promise(r=>setTimeout(r,120));
+
+  const cpfs = Array.from(cpfSet);
+  if (!cpfs.length) { showToast('Nenhum cliente BMG (318) na base','error'); return; }
+
+  // Mostra overlay
+  document.getElementById('btn-datafast').disabled = true;
+  const overlay = document.getElementById('df-overlay');
+  const dfTitle = document.getElementById('df-title');
+  const dfSub = document.getElementById('df-sub');
+  const dfBar = document.getElementById('df-bar');
+  const dfOk = document.getElementById('df-ok');
+  const dfSem = document.getElementById('df-sem');
+  const dfErr = document.getElementById('df-err');
+  overlay.classList.add('show');
+  datafastResultsBMG = {};
+
+  // Envia em lotes de 10 para não sobrecarregar o proxy
+  const LOTE = 10;
+  let done = 0, ok = 0, sem = 0, erros = 0;
+
+  for (let i = 0; i < cpfs.length; i += LOTE) {
+    const lote = cpfs.slice(i, i + LOTE);
+    dfTitle.textContent = `⚡ Consultando Datafast BMG... (${done}/${cpfs.length})`;
+    dfSub.textContent = `Lote ${Math.floor(i/LOTE)+1} de ${Math.ceil(cpfs.length/LOTE)}`;
+    dfBar.style.width = `${Math.round((done/cpfs.length)*100)}%`;
+
+    try {
+      const res = await fetch('/api/datafast', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ cpfs: lote })
+      });
+      const json = await res.json();
+
+      if (json.resultados) {
+        for (const r of json.resultados) {
+          const limite = extrairLimite(r.data);
+          datafastResultsBMG[r.cpf] = { limite, raw: r.data };
+          if (limite !== null && limite > 0) ok++;
+          else if (r.error) erros++;
+          else sem++;
+          done++;
+        }
+      } else {
+        // Erro no lote inteiro
+        lote.forEach(cpf => { datafastResultsBMG[cpf] = {limite:null,raw:null}; erros++; done++; });
+        console.error('[Datafast] Erro lote:', json);
+      }
+    } catch(e) {
+      lote.forEach(cpf => { datafastResultsBMG[cpf] = {limite:null,raw:null}; erros++; done++; });
+      console.error('[Datafast] Erro fetch:', e);
+    }
+
+    dfOk.textContent = ok;
+    dfSem.textContent = sem;
+    dfErr.textContent = erros;
+    await new Promise(r => setTimeout(r, 200));
   }
-  pBar.style.width='100%';
-  const ok=Object.values(datafastResultsBMG).filter(r=>r.limite!==null).length;
-  pText.textContent=`Concluído — ${ok}/${cpfs.length} com limite encontrado`;
-  pSub.textContent=erros>0?`${erros} CPFs sem retorno`:'Todos consultados';
-  const ex=Object.values(datafastResultsBMG).find(r=>r.raw);
-  if(ex)console.log('[Datafast] Retorno exemplo:',JSON.stringify(ex.raw,null,2));
-  setTimeout(()=>{prog.classList.remove('show');document.getElementById('btn-datafast').disabled=false;},4000);
-  showToast(`Datafast BMG: ${ok} limites obtidos`,ok>0?'success':'error');
+
+  dfBar.style.width = '100%';
+  dfTitle.textContent = `✅ Datafast BMG — ${ok} limites encontrados`;
+  dfSub.textContent = `${cpfs.length} CPFs consultados | ${sem} sem limite | ${erros} erros`;
+
+  // Log primeiro retorno para diagnóstico
+  const ex = Object.values(datafastResultsBMG).find(r=>r.raw);
+  if (ex) console.log('[Datafast] Exemplo retorno:', JSON.stringify(ex.raw, null, 2));
+
+  setTimeout(() => {
+    overlay.classList.remove('show');
+    document.getElementById('btn-datafast').disabled = false;
+    showToast(`Datafast: ${ok} limites obtidos`, ok>0?'success':'error');
+  }, 2500);
 }
 
+// Patch buildRmcRccXml para injetar coluna Limite Saque BMG
 const _origBuild = buildRmcRccXml;
 function buildRmcRccXml() {
   const result = _origBuild();
-  if(!result||!Object.keys(datafastResultsBMG).length) return result;
+  if (!result || !Object.keys(datafastResultsBMG).length) return result;
   result.sheets = result.sheets.map(ws => injetarColunaBMG(ws));
   return result;
 }
 
 function injetarColunaBMG(wsXml) {
-  if(!wsXml.includes('ss:Name="RMC BMG"')&&!wsXml.includes('ss:Name="RCC BMG"')) return wsXml;
+  if (!wsXml.includes('ss:Name="RMC BMG"') && !wsXml.includes('ss:Name="RCC BMG"')) return wsXml;
+  // Adiciona header
   wsXml = wsXml.replace(
     /(<Row ss:Height="22">)([\s\S]*?)(<\/Row>)/,
-    (m,o,c,e)=>o+c+'<Cell ss:StyleID="HRMC"><Data ss:Type="String">Limite Saque BMG (R$)</Data></Cell>'+e
+    (m,o,c,e) => o + c + '<Cell ss:StyleID="HRMC"><Data ss:Type="String">Limite Saque BMG (R$)</Data></Cell>' + e
   );
+  // Adiciona valor por linha
   return wsXml.replace(/<Row>([\s\S]*?)<\/Row>/g, function(row) {
     const m = row.match(/<Data[^>]*>(\d{9,11})<\/Data>/);
-    if(!m) return row;
+    if (!m) return row;
     const cpf = m[1].padStart(11,'0');
     const info = datafastResultsBMG[cpf];
-    const lim = info && info.limite !== null ? info.limite : null;
-    const cel = lim!==null
+    const lim = info && info.limite !== null && info.limite > 0 ? info.limite : null;
+    const cel = lim !== null
       ? `<Cell ss:StyleID="RT"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
       : `<Cell ss:StyleID="RT"><Data ss:Type="String">-</Data></Cell>`;
-    return row.replace('</Row>', cel+'</Row>');
+    return row.replace('</Row>', cel + '</Row>');
   });
 }
 
