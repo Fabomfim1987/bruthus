@@ -1049,12 +1049,16 @@ function handleFile(file) {
 }
 
 // drag & drop
-const uploadArea=document.getElementById('upload-area');
-uploadArea.addEventListener('dragover',e=>{e.preventDefault();uploadArea.classList.add('drag-over');});
-uploadArea.addEventListener('dragleave',()=>uploadArea.classList.remove('drag-over'));
-uploadArea.addEventListener('drop',e=>{
-  e.preventDefault(); uploadArea.classList.remove('drag-over');
-  if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
+document.addEventListener('DOMContentLoaded', function() {
+  const uploadArea=document.getElementById('upload-area');
+  if(uploadArea) {
+    uploadArea.addEventListener('dragover',e=>{e.preventDefault();uploadArea.classList.add('drag-over');});
+    uploadArea.addEventListener('dragleave',()=>uploadArea.classList.remove('drag-over'));
+    uploadArea.addEventListener('drop',e=>{
+      e.preventDefault(); uploadArea.classList.remove('drag-over');
+      if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════
