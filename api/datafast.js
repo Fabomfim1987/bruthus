@@ -8,13 +8,9 @@ export default async function handler(req, res) {
 
   const { endpoint, body } = req.body;
 
-  const ALLOWED_ENDPOINTS = [
-    '/v1/bmgconsig/saquecartao',
-    '/v1/bmg/saquecartao',
-  ];
-
-  if (!ALLOWED_ENDPOINTS.includes(endpoint)) {
-    return res.status(400).json({ error: 'Endpoint não permitido' });
+  const ALLOWED = ['/v1/bmgconsig/saquecartao', '/v1/bmg/saquecartao'];
+  if (!ALLOWED.includes(endpoint)) {
+    return res.status(400).json({ error: 'Endpoint nao permitido' });
   }
 
   try {
@@ -26,10 +22,9 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(body),
     });
-
     const data = await response.json();
     return res.status(response.status).json(data);
   } catch (err) {
-    return res.status(500).json({ error: 'Erro ao conectar com Datafast', detail: err.message });
+    return res.status(500).json({ error: 'Erro Datafast', detail: err.message });
   }
 }
