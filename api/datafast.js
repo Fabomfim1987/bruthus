@@ -1,4 +1,4 @@
-// v6
+// v8 - endpoint bmg antigo + novas credenciais
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -7,8 +7,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const API_KEY = 'dak_8a4b38fd181b6784a6718bc2bf5fbb62_4d066b97';
-  const BMG_USER = 'SP.56863.55677403873';
-  const BMG_PASS = '#Feverei2026$';
+  const BMG_USER = 'ANDREA.57090';
+  const BMG_PASS = 'bmp242BMP*';
   const BASE = 'https://api.dataconsulta.com.br';
 
   let body = req.body;
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
   let token;
   try {
-    const loginRes = await fetch(`${BASE}/v1/bmgconsig/saquecartao/login`, {
+    const loginRes = await fetch(`${BASE}/v1/bmg/saquecartao/login`, {
       method: 'POST',
       headers: {
         'accept': 'application/json',
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
   const resultados = [];
   for (const cpf of cpfs) {
     try {
-      const r = await fetch(`${BASE}/v1/bmgconsig/saquecartao`, {
+      const r = await fetch(`${BASE}/v1/bmg/saquecartao`, {
         method: 'POST',
         headers: {
           'accept': 'application/json',
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    await fetch(`${BASE}/v1/bmgconsig/saquecartao/logout`, {
+    await fetch(`${BASE}/v1/bmg/saquecartao/logout`, {
       method: 'POST',
       headers: { 'X-Api-Key': API_KEY, 'Authorization': `Bearer ${token}` }
     });
