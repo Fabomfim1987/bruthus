@@ -1,4 +1,4 @@
-// v5
+// v6
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -7,8 +7,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const API_KEY = 'dak_8a4b38fd181b6784a6718bc2bf5fbb62_4d066b97';
-  const BMG_USER = 'sp.56863.34921564876';
-  const BMG_PASS = 'Fabri15*/4';
+  const BMG_USER = 'SP.56863.55677403873';
+  const BMG_PASS = '#Feverei2026$';
   const BASE = 'https://api.dataconsulta.com.br';
 
   let body = req.body;
@@ -21,45 +21,28 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'cpfs array obrigatorio' });
   }
 
-  // LOGIN
   let token;
   try {
-    const loginPayload = { autenticacao: { usuario: BMG_USER, senha: BMG_PASS } };
-    const loginBody = JSON.stringify(loginPayload);
-    
     const loginRes = await fetch(`${BASE}/v1/bmgconsig/saquecartao/login`, {
       method: 'POST',
       headers: {
         'accept': 'application/json',
         'X-Api-Key': API_KEY,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(loginBody).toString()
+        'Content-Type': 'application/json'
       },
-      body: loginBody
+      body: JSON.stringify({ autenticacao: { usuario: BMG_USER, senha: BMG_PASS } })
     });
-
     const loginText = await loginRes.text();
-    
-    // Retorna diagnóstico completo para debug
     let loginData;
     try { loginData = JSON.parse(loginText); } catch(e) { loginData = { raw: loginText }; }
-    
     token = loginData.token;
-    
     if (!token) {
-      return res.status(200).json({ 
-        debug: true,
-        loginStatus: loginRes.status,
-        loginResponse: loginData,
-        sentUser: BMG_USER,
-        sentPayloadKeys: Object.keys(loginPayload.autenticacao)
-      });
+      return res.status(401).json({ error: 'Login falhou', status: loginRes.status, detail: loginData });
     }
   } catch (err) {
     return res.status(500).json({ error: 'Erro no login', detail: err.message });
   }
 
-  // CONSULTA
   const resultados = [];
   for (const cpf of cpfs) {
     try {
@@ -80,7 +63,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // LOGOUT
   try {
     await fetch(`${BASE}/v1/bmgconsig/saquecartao/logout`, {
       method: 'POST',
