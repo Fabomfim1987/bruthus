@@ -1,13 +1,14 @@
-// v2export default async function handler(req, res) {
+// v3
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const API_KEY = process.env.DATAFAST_API_KEY;
-  const BMG_USER = process.env.BMG_USUARIO;
-  const BMG_PASS = process.env.BMG_SENHA;
+  const API_KEY = process.env.DATAFAST_API_KEY || 'dak_8a4b38fd181b6784a6718bc2bf5fbb62_4d066b97';
+  const BMG_USER = process.env.BMG_USUARIO || 'sp.56863.34921564876';
+  const BMG_PASS = process.env.BMG_SENHA || 'Fabri15*/4';
   const BASE = 'https://api.dataconsulta.com.br';
 
   const { cpfs } = req.body;
@@ -15,7 +16,6 @@
     return res.status(400).json({ error: 'cpfs array obrigatorio' });
   }
 
-  // 1. LOGIN — obtém JWT
   let token;
   try {
     const loginRes = await fetch(`${BASE}/v1/bmgconsig/saquecartao/login`, {
@@ -29,12 +29,13 @@
     });
     const loginData = await loginRes.json();
     token = loginData.token;
-    if (!token) return res.status(401).json({ error: 'Login falhou', detail: loginData });
+    if (!token) {
+      return res.status(401).json({ error: 'Login falhou', detail: loginData, user: BMG_USER });
+    }
   } catch (err) {
-    return res.status(500).json({ error: 'Erro no login Datafast', detail: err.message });
+    return res.status(500).json({ error: 'Erro no login', detail: err.message });
   }
 
-  // 2. CONSULTA — 1 CPF por vez
   const resultados = [];
   for (const cpf of cpfs) {
     try {
@@ -55,7 +56,6 @@
     }
   }
 
-  // 3. LOGOUT
   try {
     await fetch(`${BASE}/v1/bmgconsig/saquecartao/logout`, {
       method: 'POST',
