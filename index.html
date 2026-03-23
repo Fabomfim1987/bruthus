@@ -817,27 +817,27 @@ function runMotor(dob,especieNum,bancoOrigem,contratoNum,parcela,saldo,pagas,tot
     if(FINANTO_ESPECIES_BLOQ.has(especieNum))return[null,`Finanto: espécie ${especieNum} bloqueada`];
     if(ageExceeds(dob,69,10))return[null,'Finanto: idade > 69a 10m'];
     if(FINANTO_NAO_PORTA.has(banco))return[null,`Finanto: banco ${banco} não porta`];
-    if(!saldo)return[null,'Finanto: saldo inválido'];
-    if(saldo>=6000){
-      const min12=FINANTO_12_PAGAS.has(banco);
-      const minPagas=min12?12:1;
-      if(pagas===null||pagas<minPagas)return[null,`Finanto: ${banco} exige ${minPagas} paga(s) (${pagas})`];
-      let r=calcTroco(parcela,saldo);
-      if(restantes!=null&&restantes>=80&&restantes<=95){
-        r=calcTroco(parcela,saldo,0,null);
-        if(r&&r.taxa<1.70)return[null,'Finanto: taxa mín 1.70% sem troco'];
-      }
-      if(r&&r.troco>0)return[{banco:'Finanto',...r},null];
-      return[null,'Finanto: sem troco positivo'];
-    } else if(saldo>=2000&&saldo<=5999.99){
-      if(pagas===null||pagas<12)return[null,`Finanto: tabela especial exige 12 pagas (${pagas})`];
-      const coef=0.02451;
-      const contrato=parcela/coef;
-      const troco=contrato-saldo;
-      if(troco>0)return[{banco:'Finanto',taxa:1.80,coef,contrato,troco},null];
-      return[null,'Finanto: sem troco (tabela especial)'];
-    }
-    return[null,`Finanto: saldo insuficiente (${saldo?.toFixed(2)} < 2000)`];
+
+    // Nova regra: elegibilidade por parcela, não saldo
+    if(!parcela||parcela<50)return[null,`Finanto: parcela ${parcela?.toFixed(2)} < R$50`];
+
+    // Define taxa mínima por faixa de parcela
+    let taxaMin;
+    if(parcela>300) taxaMin=1.66;        // Prime
+    else if(parcela>=101) taxaMin=1.68;  // Select
+    else taxaMin=1.75;                   // Essencial (R$50 a R$100)
+
+    // Parcelas pagas mínimas por banco
+    const min12=FINANTO_12_PAGAS.has(banco);
+    const minPagas=min12?12:1;
+    if(pagas===null||pagas<minPagas)return[null,`Finanto: ${banco} exige ${minPagas} paga(s) (${pagas})`];
+
+    // Calcula troco usando taxa mínima da faixa
+    const r=calcTroco(parcela,saldo,0,null);
+    if(!r)return[null,'Finanto: sem troco positivo'];
+    if(r.taxa<taxaMin)return[null,`Finanto: taxa ${r.taxa.toFixed(2)}% abaixo do mínimo ${taxaMin.toFixed(2)}% para parcela ${parcela.toFixed(2)}`];
+    if(r.troco>0)return[{banco:'Finanto',...r},null];
+    return[null,'Finanto: sem troco positivo'];
   }
 
   function tryBRB(){
@@ -880,6 +880,13 @@ function runMotor(dob,especieNum,bancoOrigem,contratoNum,parcela,saldo,pagas,tot
 
   function tryPMT(){
     if(!pmtOk)return[null,`PMT: parcela=${parcela?.toFixed(2)}/saldo=${saldo?.toFixed(2)}`];
+    // Bloqueia espécies 87 e 88
+    if(especieNum===87||especieNum===88)return[null,'PMT Baixa: espécie 87/88 bloqueada'];
+    // Faixa de idade: 18 a 73 anos
+    const[yy]=calcAge(dob);
+    if(yy===null)return[null,'PMT Baixa: idade inválida'];
+    if(yy<18)return[null,`PMT Baixa: idade ${yy}a < 18`];
+    if(yy>=73)return[null,`PMT Baixa: idade ${yy}a > 73`];
     const taxa=1.85,coef=0.02299;
     const contrato=parcela/coef;
     const troco=contrato-saldo;
