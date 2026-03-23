@@ -2037,7 +2037,7 @@ async function consultarDatafastBMG() {
 
       if (json.resultados) {
         for (const r of json.resultados) {
-          const limite = extrairLimite(r.data);
+          const limite = (r.limite !== undefined && r.limite !== null) ? r.limite : extrairLimite(r.data);
           datafastResultsBMG[r.cpf] = { limite, raw: r.data };
           if (limite !== null && limite > 0) ok++;
           else if (r.error) erros++;
