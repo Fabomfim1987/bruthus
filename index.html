@@ -2111,13 +2111,7 @@ async function consultarDatafastBMG() {
 }
 
 // Patch buildRmcRccXml para injetar coluna Limite Saque BMG
-const _origBuild = buildRmcRccXml;
-function buildRmcRccXml() {
-  const result = _origBuild();
-  if (!result || !Object.keys(datafastResultsBMG).length) return result;
-  result.sheets = result.sheets.map(ws => injetarColunaBMG(ws));
-  return result;
-}
+// patch removido v8
 
 function injetarColunaBMG(wsXml) {
   if (!wsXml.includes('ss:Name="RMC BMG"') && !wsXml.includes('ss:Name="RCC BMG"')) return wsXml;
