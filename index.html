@@ -2124,6 +2124,7 @@ async function consultarDatafastBMG() {
     overlay.classList.remove('show');
     document.getElementById('btn-datafast').disabled = false;
     showToast(`Datafast: ${ok} limites obtidos`, ok>0?'success':'error');
+    document.getElementById('btn-export-bmg').disabled = false;
   }, 2500);
 }
 
