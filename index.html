@@ -443,6 +443,14 @@ td { padding:10px 14px; white-space:nowrap; }
 }
 .btn-datafast:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,166,35,.35); }
 .btn-datafast:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.btn-export-bmg {
+  background: linear-gradient(135deg, #1565c0, #1976d2);
+  color: #fff; font-weight:700; font-size:13px;
+  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:6px; transition: all .2s;
+}
+.btn-export-bmg:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(21,101,192,.35); }
+.btn-export-bmg:disabled { opacity:.4; cursor:not-allowed; transform:none; }
 .df-overlay {
   position:fixed; inset:0; background:rgba(10,22,40,.82);
   z-index:300; display:none; align-items:center; justify-content:center;
@@ -485,8 +493,11 @@ td { padding:10px 14px; white-space:nowrap; }
     <button class="btn-datafast" id="btn-datafast" disabled onclick="consultarDatafastBMG()">
       ⚡ Saque BMG
     </button>
+    <button class="btn-export-bmg" id="btn-export-bmg" disabled onclick="exportarSaqueBMG()">
+      ⬇ Saque BMG
+    </button>
     <button class="btn-export" id="btn-export" disabled onclick="exportarElegiveis()">
-      ⬇ Exportar
+      ⬇ Exportar Fênix
     </button>
     <button class="btn-nova" onclick="novaBase()">Nova Base</button>
   </div>
@@ -1960,6 +1971,7 @@ function novaBase() {
   document.getElementById('screen-upload').style.display='flex';
   document.getElementById('btn-export').disabled=true;
   document.getElementById('btn-datafast').disabled=true;
+  document.getElementById('btn-export-bmg').disabled=true;
   if(typeof datafastResultsBMG!=='undefined')datafastResultsBMG={};
   document.getElementById('file-indicator').textContent='';
   document.getElementById('file-input').value='';
@@ -2137,6 +2149,91 @@ function injetarColunaBMG(wsXml) {
       : `<Cell ss:StyleID="RT"><Data ss:Type="String">-</Data></Cell>`;
     return row.replace('</Row>', cel + '</Row>');
   });
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// EXPORTAR SAQUE BMG — Abas RMC/RCC BMG com Limite Datafast
+// ═══════════════════════════════════════════════════════════
+function exportarSaqueBMG() {
+  if (!rawSheetData || !rawHeaders || rawSheetData.length < 2) {
+    showToast('Carregue uma base primeiro','error'); return;
+  }
+  if (!Object.keys(datafastResultsBMG).length) {
+    showToast('Rode o Saque BMG primeiro','error'); return;
+  }
+
+  const data = rawSheetData;
+  const headers = rawHeaders;
+
+  const sv = v => {
+    if (v === null || v === undefined) return '';
+    return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
+
+  const ri = headers.findIndex(h => String(h||'').trim() === 'Codigo RMC');
+  const ci = headers.findIndex(h => String(h||'').trim() === 'Codigo RCC');
+  const rIdx = ri >= 0 ? ri : 38;
+  const cIdx = ci >= 0 ? ci : 45;
+
+  // Coleta linhas por aba
+  const rmcBMG = [], rccBMG = [];
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    if (!row || (!row[0]&&!row[1]&&!row[2])) continue;
+    if (String(row[rIdx]||'').trim() === '318') rmcBMG.push(r);
+    if (String(row[cIdx]||'').trim() === '318') rccBMG.push(r);
+  }
+
+  function cpfNorm(v) {
+    try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); } catch(e) { return String(v||''); }
+  }
+
+  function buildAba(name, rowIdxArr) {
+    const HH = '<Cell ss:StyleID="RH"><Data ss:Type="String">';
+    const HE = '</Data></Cell>';
+    const hdrCells = headers.map(h => HH + sv(h) + HE).join('');
+    const hdrRow = '<Row ss:Height="22">' + hdrCells + HH + 'Limite Saque BMG (R$)' + HE + '</Row>';
+    const parts = [`<Worksheet ss:Name="${sv(name)}"><Table ss:DefaultRowHeight="16">`, hdrRow];
+    rowIdxArr.forEach((ri, i) => {
+      const row = data[ri];
+      const g = i%2 ? 'g' : '';
+      const cpf = cpfNorm(row[0]);
+      const info = datafastResultsBMG[cpf];
+      const lim = info && info.limite !== null && info.limite > 0 ? info.limite : null;
+      const limCell = lim !== null
+        ? `<Cell ss:StyleID="RT${g}"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
+        : `<Cell ss:StyleID="RT${g}"><Data ss:Type="String">Sem limite</Data></Cell>`;
+      const cells = row.map(v => `<Cell ss:StyleID="RT${g}"><Data ss:Type="String">${sv(v)}</Data></Cell>`).join('');
+      parts.push('<Row>' + cells + limCell + '</Row>');
+    });
+    parts.push('</Table></Worksheet>');
+    return parts.join('\n');
+  }
+
+  const STYLES = `
+  <Style ss:ID="RH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="RT"><Font ss:FontName="Arial" ss:Size="8"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>`;
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>${STYLES}</Styles>
+${buildAba('RMC BMG', rmcBMG)}
+${buildAba('RCC BMG', rccBMG)}
+</Workbook>`;
+
+  const blob = new Blob([xml], {type:'application/vnd.ms-excel'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const d = new Date();
+  a.download = `Saque_BMG_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.xls`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Exportado: Saque BMG com limites Datafast','success');
 }
 
 // Init
