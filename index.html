@@ -1471,29 +1471,34 @@ function buildRmcRccXml() {
   <Style ss:ID="KVALUE"><Font ss:Bold="1" ss:Color="#375623" ss:FontName="Arial" ss:Size="14"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#375623"/></Borders></Style>
   <Style ss:ID="KVALLA"><Font ss:Bold="1" ss:Color="#B85C00" ss:FontName="Arial" ss:Size="14"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#B85C00"/></Borders></Style>`;
 
-  // Função para injetar coluna de limite BMG
+  // Função para gerar aba BMG com coluna de limite Datafast
   function buildWsComLimiteBMG(name, rowIdxArr) {
-    const cpfColIdx = headers.findIndex(h => String(h||'').trim() === 'CPF');
-    const ci = cpfColIdx >= 0 ? cpfColIdx : 0;
+    const ci = 0; // CPF sempre na coluna 0
     const temLimites = Object.keys(datafastResultsBMG).length > 0;
-    const hdrLimite = temLimites ? HH + 'Limite Saque BMG (R$)' + HE : '';
-    const parts = ['<Worksheet ss:Name="'+sv(name)+'"><Table ss:DefaultRowHeight="16">',
-      hdrRow.replace('</Row>', hdrLimite + '</Row>')];
+    // Header com coluna extra se tem limites
+    const hdrExtra = temLimites
+      ? '<Cell ss:StyleID="RH"><Data ss:Type="String">Limite Saque BMG (R$)</Data></Cell>'
+      : '';
+    const hdrRowBMG = hdrRow.slice(0, hdrRow.lastIndexOf('</Row>')) + hdrExtra + '</Row>';
+    const parts = ['<Worksheet ss:Name="'+sv(name)+'"><Table ss:DefaultRowHeight="16">', hdrRowBMG];
     rowIdxArr.forEach((ri, i) => {
       const row = data[ri];
       const g = i%2?'g':'';
-      const rawCpf = row[ci];
+      // Extrai CPF
       let cpf = '';
-      try { cpf = String(parseInt(parseFloat(String(rawCpf)))).padStart(11,'0'); } catch(e) { cpf = String(rawCpf||''); }
-      const info = datafastResultsBMG[cpf];
-      const lim = info && info.limite !== null && info.limite > 0 ? info.limite : null;
-      const limCell = temLimites
-        ? (lim !== null
-            ? '<Cell ss:StyleID="RT'+g+'"><Data ss:Type="Number">'+lim.toFixed(2)+'</Data></Cell>'
-            : '<Cell ss:StyleID="RT'+g+'"><Data ss:Type="String">Sem limite</Data></Cell>')
-        : '';
-      const rowXml = '<Row>' + row.map(v=>`<Cell ss:StyleID="RT${g}"><Data ss:Type="String">${sv(v)}</Data></Cell>`).join('') + limCell + '</Row>';
-      parts.push(rowXml);
+      try { cpf = String(parseInt(parseFloat(String(row[ci])))).padStart(11,'0'); } catch(e) { cpf = String(row[ci]||''); }
+      // Busca limite
+      let limCell = '';
+      if (temLimites) {
+        const info = datafastResultsBMG[cpf];
+        const lim = info && info.limite !== null && info.limite > 0 ? info.limite : null;
+        limCell = lim !== null
+          ? '<Cell ss:StyleID="RT'+g+'"><Data ss:Type="Number">'+lim.toFixed(2)+'</Data></Cell>'
+          : '<Cell ss:StyleID="RT'+g+'"><Data ss:Type="String">Sem limite</Data></Cell>';
+      }
+      // Linha completa
+      const cells = row.map(v=>'<Cell ss:StyleID="RT'+g+'"><Data ss:Type="String">'+sv(v)+'</Data></Cell>').join('');
+      parts.push('<Row>'+cells+limCell+'</Row>');
     });
     parts.push('</Table></Worksheet>');
     return parts.join('\n');
