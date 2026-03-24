@@ -451,6 +451,14 @@ td { padding:10px 14px; white-space:nowrap; }
 }
 .btn-export-bmg:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(21,101,192,.35); }
 .btn-export-bmg:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.btn-estudo {
+  background: linear-gradient(135deg, #6a0dad, #8e24aa);
+  color: #fff; font-weight:700; font-size:13px;
+  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:6px; transition: all .2s;
+}
+.btn-estudo:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(106,13,173,.35); }
+.btn-estudo:disabled { opacity:.4; cursor:not-allowed; transform:none; }
 .df-overlay {
   position:fixed; inset:0; background:rgba(10,22,40,.82);
   z-index:300; display:none; align-items:center; justify-content:center;
@@ -495,6 +503,9 @@ td { padding:10px 14px; white-space:nowrap; }
     </button>
     <button class="btn-export-bmg" id="btn-export-bmg" disabled onclick="exportarSaqueBMG()">
       ⬇ Saque BMG
+    </button>
+    <button class="btn-estudo" id="btn-estudo" disabled onclick="exportarEstudoCompleto()">
+      ⭐ Estudo Completo
     </button>
     <button class="btn-export" id="btn-export" disabled onclick="exportarElegiveis()">
       ⬇ Exportar Fênix
@@ -1103,6 +1114,7 @@ function renderAll(fileName) {
   document.getElementById('btn-export').disabled=false;
   document.getElementById('btn-datafast').disabled=false;
   document.getElementById('btn-export-bmg').disabled=false;
+  document.getElementById('btn-estudo').disabled=false;
 
   renderDashboard();
   renderTabela();
@@ -1973,6 +1985,7 @@ function novaBase() {
   document.getElementById('btn-export').disabled=true;
   document.getElementById('btn-datafast').disabled=true;
   document.getElementById('btn-export-bmg').disabled=true;
+  document.getElementById('btn-estudo').disabled=true;
   if(typeof datafastResultsBMG!=='undefined')datafastResultsBMG={};
   document.getElementById('file-indicator').textContent='';
   document.getElementById('file-input').value='';
@@ -2248,6 +2261,267 @@ ${buildAba('RCC BMG', rccBMG)}
   a.click();
   URL.revokeObjectURL(url);
   showToast('Exportado: Saque BMG com limites Datafast','success');
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ESTUDO COMPLETO — Resumo Portabilidade + Abas BMG + Fênix
+// ═══════════════════════════════════════════════════════════
+function exportarEstudoCompleto() {
+  if (!rawSheetData || !rawHeaders || rawSheetData.length < 2) {
+    showToast('Carregue uma base primeiro','error'); return;
+  }
+  if (!allResults || !allResults.length) {
+    showToast('Processe a base primeiro','error'); return;
+  }
+
+  const sv = v => {
+    if (v === null || v === undefined) return '';
+    return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
+  const fmtN = v => {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : Math.round(n*100)/100;
+  };
+  const fmtMoney = v => {
+    const n = fmtN(v);
+    return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  };
+
+  const temDatafast = Object.keys(datafastResultsBMG).length > 0;
+
+  // === MONTA RESUMO POR CLIENTE ===
+  const clienteMap = {};
+  allResults.forEach(r => {
+    const cpf = String(r.cpf||'').replace(/\D/g,'').padStart(11,'0');
+    if (!clienteMap[cpf]) {
+      clienteMap[cpf] = {
+        nome: r.nome, cpf, idade: r.idade, especie: r.especie,
+        melhorBanco: '', qtdContr: 0,
+        vlrPorto: 0, trocoPorto: 0,
+        vlrPMT: 0, trocoPMT: 0,
+        saqRMCBMG: 0, saqRCCBMG: 0, saqDAY: 0
+      };
+    }
+    const c = clienteMap[cpf];
+    c.qtdContr++;
+    if (r.elegivel) {
+      if (r.destino === 'PMT Baixa') {
+        c.vlrPMT += fmtN(r.valorContrato);
+        c.trocoPMT += fmtN(r.troco);
+        if (!c.melhorBanco) c.melhorBanco = r.destino;
+      } else {
+        c.vlrPorto += fmtN(r.valorContrato);
+        c.trocoPorto += fmtN(r.troco);
+        if (!c.melhorBanco) c.melhorBanco = r.destino;
+      }
+    }
+  });
+
+  // Injeta saques Datafast por CPF
+  if (temDatafast) {
+    const rmc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+    const rcc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+    const ri = rmc_i>=0?rmc_i:38;
+    const ci = rcc_i>=0?rcc_i:45;
+
+    for (let r=1; r<rawSheetData.length; r++) {
+      const row = rawSheetData[r];
+      if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
+      let cpf='';
+      try { cpf = String(parseInt(parseFloat(String(row[0])))).padStart(11,'0'); } catch(e){}
+      const info = datafastResultsBMG[cpf];
+      const lim = info && info.limite > 0 ? info.limite : 0;
+      if (!lim) continue;
+      const rmc = String(row[ri]||'').trim();
+      const rcc = String(row[ci]||'').trim();
+      if (!clienteMap[cpf]) continue;
+      if (rmc==='318') clienteMap[cpf].saqRMCBMG += lim;
+      if (rcc==='318') clienteMap[cpf].saqRCCBMG += lim;
+      if (rmc==='707'||rcc==='707') clienteMap[cpf].saqDAY += lim;
+    }
+  }
+
+  // Ordena por Líquido Total desc
+  const clientes = Object.values(clienteMap).map(c => {
+    c.vlrTotal = c.vlrPorto + c.vlrPMT;
+    c.trocoTotal = c.trocoPorto + c.trocoPMT;
+    c.liquido = c.vlrTotal + c.saqRMCBMG + c.saqRCCBMG + c.saqDAY;
+    return c;
+  }).sort((a,b) => b.liquido - a.liquido);
+
+  // KPIs
+  const totalClientes = clientes.length;
+  const totalContratos = clientes.reduce((s,c)=>s+c.qtdContr,0);
+  const totalVlrPorto = clientes.reduce((s,c)=>s+c.vlrPorto,0);
+  const totalVlrPMT = clientes.reduce((s,c)=>s+c.vlrPMT,0);
+  const totalSaqRMCBMG = clientes.reduce((s,c)=>s+c.saqRMCBMG,0);
+  const totalSaqRCCBMG = clientes.reduce((s,c)=>s+c.saqRCCBMG,0);
+  const totalSaqDAY = clientes.reduce((s,c)=>s+c.saqDAY,0);
+  const totalLiquido = clientes.reduce((s,c)=>s+c.liquido,0);
+  const ctRMCBMG = clientes.filter(c=>c.saqRMCBMG>0).length;
+  const ctRCCBMG = clientes.filter(c=>c.saqRCCBMG>0).length;
+  const ctDAY = clientes.filter(c=>c.saqDAY>0).length;
+
+  // === ESTILOS ===
+  const STYLES = `
+  <Style ss:ID="TITLE"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="13"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+  <Style ss:ID="KH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#2E75B6" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>
+  <Style ss:ID="KV"><Font ss:Bold="1" ss:Color="#2E75B6" ss:FontName="Arial" ss:Size="13"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#2E75B6"/></Borders></Style>
+  <Style ss:ID="SAQH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#2E86AB" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>
+  <Style ss:ID="SAQV"><Font ss:Bold="1" ss:Color="#2E86AB" ss:FontName="Arial" ss:Size="13"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#2E86AB"/></Borders></Style>
+  <Style ss:ID="LIQH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="11"/><Interior ss:Color="#833C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>
+  <Style ss:ID="LIQV"><Font ss:Bold="1" ss:Color="#833C00" ss:FontName="Arial" ss:Size="20"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Interior ss:Color="#FFF0E0" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#833C00"/></Borders></Style>
+  <Style ss:ID="H"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="HPMT"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#B85C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="HSAQ"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#2E75B6" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="HLIQ"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#833C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="T"><Font ss:FontName="Arial" ss:Size="9"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
+  <Style ss:ID="Tg"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
+  <Style ss:ID="M"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
+  <Style ss:ID="Mg"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
+  <Style ss:ID="MSAQ"><Font ss:Bold="1" ss:Color="#1A5276" ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
+  <Style ss:ID="MSAQg"><Font ss:Bold="1" ss:Color="#1A5276" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#EAF4FB" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
+  <Style ss:ID="MLIQ"><Font ss:Bold="1" ss:Color="#833C00" ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Interior ss:Color="#FFF0E0" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
+  <Style ss:ID="RH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
+  <Style ss:ID="RT"><Font ss:FontName="Arial" ss:Size="8"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="RTg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
+  <Style ss:ID="BLANK"><Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/></Style>`;
+
+  // === ABA RESUMO PORTABILIDADE ===
+  function buildResumo() {
+    const C = (style, type, val) => `<Cell ss:StyleID="${style}"><Data ss:Type="${type}">${sv(val)}</Data></Cell>`;
+    const BLANK = '<Cell ss:StyleID="BLANK"><Data ss:Type="String"> </Data></Cell>';
+    const MERGE = (style, cols, rows, type, val) => `<Cell ss:StyleID="${style}" ss:MergeAcross="${cols-1}" ss:MergeDown="${rows-1}"><Data ss:Type="${type}">${sv(val)}</Data></Cell>`;
+
+    let rows = [];
+    // Linha 1 — título
+    rows.push(`<Row ss:Height="28">${MERGE('TITLE',16,1,'String','RESUMO PORTABILIDADE — POR CLIENTE  |  Ordenado por Líquido Total')}</Row>`);
+    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
+    // Linha 3 — headers KPIs
+    rows.push(`<Row ss:Height="22">${C('KH','String','Total Clientes')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','Total Contratos')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','Vlr Contrato Portabilidade')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','Vlr Contrato PMT Baixa')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}</Row>`);
+    // Linha 4 — valores KPIs
+    rows.push(`<Row ss:Height="30">${C('KV','Number',totalClientes)}${BLANK}${BLANK}${BLANK}${C('KV','Number',totalContratos)}${BLANK}${BLANK}${BLANK}${C('KV','Number',totalVlrPorto.toFixed(2))}${BLANK}${BLANK}${BLANK}${C('KV','Number',totalVlrPMT.toFixed(2))}${BLANK}${BLANK}${BLANK}</Row>`);
+    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
+    // Linha 6 — saques headers
+    rows.push(`<Row ss:Height="22">${MERGE('SAQH',4,1,'String',`💳 Saque RMC BMG  (${ctRMCBMG} clientes)`)}${BLANK}${BLANK}${BLANK}${MERGE('SAQH',4,1,'String',`💳 Saque RCC BMG  (${ctRCCBMG} clientes)`)}${BLANK}${BLANK}${BLANK}${MERGE('SAQH',4,1,'String',`💳 Saque Daycoval  (${ctDAY} clientes)`)}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
+    // Linha 7 — valores saques
+    rows.push(`<Row ss:Height="30">${C('SAQV','Number',totalSaqRMCBMG.toFixed(2))}${BLANK}${BLANK}${BLANK}${C('SAQV','Number',totalSaqRCCBMG.toFixed(2))}${BLANK}${BLANK}${BLANK}${C('SAQV','Number',totalSaqDAY.toFixed(2))}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
+    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
+    // Linha 9 — líquido total header
+    rows.push(`<Row ss:Height="22">${MERGE('LIQH',16,1,'String','⭐  LÍQUIDO TOTAL  (Portabilidade + PMT Baixa + Saque Cartão)')}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
+    // Linha 10 — valor líquido
+    rows.push(`<Row ss:Height="45">${MERGE('LIQV',16,1,'Number',totalLiquido.toFixed(2))}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
+    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
+    // Linha 12 — headers tabela
+    rows.push(`<Row ss:Height="36">${C('H','String','Nome')}${C('H','String','CPF')}${C('H','String','Idade')}${C('H','String','Espécie')}${C('H','String','Melhor Banco')}${C('H','String','Qtd\nContr.')}${C('H','String','Vlr Cont.\nPortabilidade')}${C('H','String','Troco\nPortabilidade')}${C('HPMT','String','Vlr Cont.\nPMT Baixa')}${C('HPMT','String','Troco\nPMT Baixa')}${C('H','String','Vlr Cont.\nTOTAL ★')}${C('H','String','Troco\nTOTAL')}${C('HSAQ','String','💳 Saque\nRMC BMG')}${C('HSAQ','String','💳 Saque\nRCC BMG')}${C('HSAQ','String','💳 Saque\nDaycoval')}${C('HLIQ','String','💰 Líquido Total\n(Port.+PMT+Saque)')}</Row>`);
+
+    // Dados
+    clientes.forEach((c, i) => {
+      const g = i%2?'g':'';
+      const t = `T${g}`, m = `M${g}`, msaq=`MSAQ${g}`;
+      rows.push(`<Row ss:Height="18">
+        ${C(t,'String',c.nome)}
+        ${C(t,'String',c.cpf)}
+        ${C(t,'String',c.idade)}
+        ${C(t,'String',c.especie)}
+        ${C(t,'String',c.melhorBanco)}
+        ${C(t,'Number',c.qtdContr)}
+        ${C(m,'Number',c.vlrPorto.toFixed(2))}
+        ${C(m,'Number',c.trocoPorto.toFixed(2))}
+        ${C(m,'Number',c.vlrPMT.toFixed(2))}
+        ${C(m,'Number',c.trocoPMT.toFixed(2))}
+        ${C(m,'Number',c.vlrTotal.toFixed(2))}
+        ${C(m,'Number',c.trocoTotal.toFixed(2))}
+        ${C(msaq,'Number',c.saqRMCBMG.toFixed(2))}
+        ${C(msaq,'Number',c.saqRCCBMG.toFixed(2))}
+        ${C(msaq,'Number',c.saqDAY.toFixed(2))}
+        ${C('MLIQ','Number',c.liquido.toFixed(2))}
+      </Row>`);
+    });
+
+    return `<Worksheet ss:Name="Resumo Portabilidade"><Table ss:DefaultRowHeight="16">
+      <Column ss:Width="180"/>
+      <Column ss:Width="100"/>
+      <Column ss:Width="60"/>
+      <Column ss:Width="120"/>
+      <Column ss:Width="80"/>
+      <Column ss:Width="50"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="90"/>
+      <Column ss:Width="100"/>
+      ${rows.join('\n')}
+    </Table></Worksheet>`;
+  }
+
+  // === ABAS RMC/RCC BMG com Limite Datafast ===
+  function cpfNorm(v) {
+    try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); } catch(e) { return String(v||''); }
+  }
+  function buildAbaBMG(name, codigoBanco) {
+    const rmc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+    const rcc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+    const ri = rmc_i>=0?rmc_i:38;
+    const ci = rcc_i>=0?rcc_i:45;
+    const isRMC = name.includes('RMC');
+    const colIdx = isRMC ? ri : ci;
+    const rowIdxArr = [];
+    for (let r=1;r<rawSheetData.length;r++) {
+      const row = rawSheetData[r];
+      if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
+      if (String(row[colIdx]||'').trim()===codigoBanco) rowIdxArr.push(r);
+    }
+    const HH = '<Cell ss:StyleID="RH"><Data ss:Type="String">';
+    const HE = '</Data></Cell>';
+    const hdrCols = rawHeaders.map(h=>HH+sv(h)+HE).join('');
+    const hdrLimite = HH+'Limite Saque BMG (R$)'+HE;
+    const hdrRow = `<Row ss:Height="22">${hdrCols}${hdrLimite}</Row>`;
+    const parts = [`<Worksheet ss:Name="${sv(name)}"><Table ss:DefaultRowHeight="16">`, hdrRow];
+    rowIdxArr.forEach((ri2,i) => {
+      const row = rawSheetData[ri2];
+      const g = i%2?'g':'';
+      const cpf = cpfNorm(row[0]);
+      const info = datafastResultsBMG[cpf];
+      const lim = info && info.limite > 0 ? info.limite : null;
+      const limCell = lim!==null
+        ? `<Cell ss:StyleID="RT${g}"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
+        : `<Cell ss:StyleID="RT${g}"><Data ss:Type="String">Sem limite</Data></Cell>`;
+      const cells = row.map(v=>`<Cell ss:StyleID="RT${g}"><Data ss:Type="String">${sv(v)}</Data></Cell>`).join('');
+      parts.push(`<Row>${cells}${limCell}</Row>`);
+    });
+    parts.push('</Table></Worksheet>');
+    return parts.join('\n');
+  }
+
+  // === MONTA XML COMPLETO ===
+  const d = new Date();
+  const fileName = `Estudo_Completo_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.xls`;
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>${STYLES}</Styles>
+${buildResumo()}
+${buildAbaBMG('RMC BMG','318')}
+${buildAbaBMG('RCC BMG','318')}
+</Workbook>`;
+
+  const blob = new Blob([xml], {type:'application/vnd.ms-excel'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Estudo Completo exportado!','success');
 }
 
 // Init
