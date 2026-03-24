@@ -2192,20 +2192,34 @@ function exportarSaqueBMG() {
   function buildAba(name, rowIdxArr) {
     const HH = '<Cell ss:StyleID="RH"><Data ss:Type="String">';
     const HE = '</Data></Cell>';
-    const hdrCells = headers.map(h => HH + sv(h) + HE).join('');
-    const hdrRow = '<Row ss:Height="22">' + hdrCells + HH + 'Limite Saque BMG (R$)' + HE + '</Row>';
+    // Índices das colunas CPF(0), Beneficio(1), Nome(2)
+    const colCPF = 0;
+    const colBeneficio = headers.findIndex(h => String(h||'').toLowerCase().includes('beneficio') || String(h||'').toLowerCase().includes('benefício')) || 1;
+    const colNome = headers.findIndex(h => String(h||'').toLowerCase() === 'nome') || 2;
+    const hdrRow = '<Row ss:Height="22">' +
+      HH + 'CPF' + HE +
+      HH + 'Benefício' + HE +
+      HH + 'Nome' + HE +
+      HH + 'Limite Saque BMG (R$)' + HE +
+      '</Row>';
     const parts = [`<Worksheet ss:Name="${sv(name)}"><Table ss:DefaultRowHeight="16">`, hdrRow];
     rowIdxArr.forEach((ri, i) => {
       const row = data[ri];
       const g = i%2 ? 'g' : '';
-      const cpf = cpfNorm(row[0]);
+      const cpf = cpfNorm(row[colCPF]);
+      const beneficio = sv(row[colBeneficio] || '');
+      const nome = sv(row[colNome] || '');
       const info = datafastResultsBMG[cpf];
       const lim = info && info.limite !== null && info.limite > 0 ? info.limite : null;
       const limCell = lim !== null
         ? `<Cell ss:StyleID="RT${g}"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
         : `<Cell ss:StyleID="RT${g}"><Data ss:Type="String">Sem limite</Data></Cell>`;
-      const cells = row.map(v => `<Cell ss:StyleID="RT${g}"><Data ss:Type="String">${sv(v)}</Data></Cell>`).join('');
-      parts.push('<Row>' + cells + limCell + '</Row>');
+      parts.push(`<Row>
+        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${cpf}</Data></Cell>
+        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${beneficio}</Data></Cell>
+        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${nome}</Data></Cell>
+        ${limCell}
+      </Row>`);
     });
     parts.push('</Table></Worksheet>');
     return parts.join('\n');
