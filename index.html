@@ -1102,6 +1102,7 @@ function renderAll(fileName) {
   document.getElementById('file-indicator').textContent='📄 '+fileName;
   document.getElementById('btn-export').disabled=false;
   document.getElementById('btn-datafast').disabled=false;
+  document.getElementById('btn-export-bmg').disabled=false;
 
   renderDashboard();
   renderTabela();
@@ -2160,9 +2161,7 @@ function exportarSaqueBMG() {
   if (!rawSheetData || !rawHeaders || rawSheetData.length < 2) {
     showToast('Carregue uma base primeiro','error'); return;
   }
-  if (!Object.keys(datafastResultsBMG).length) {
-    showToast('Rode o Saque BMG primeiro','error'); return;
-  }
+  const temLimitesAgora = Object.keys(datafastResultsBMG).length > 0;
 
   const data = rawSheetData;
   const headers = rawHeaders;
