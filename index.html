@@ -2470,6 +2470,10 @@ function exportarEstudoCompleto() {
     const rcc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
     const ri = rmc_i>=0?rmc_i:38;
     const ci = rcc_i>=0?rcc_i:45;
+    const beneficioIdx = rawHeaders.findIndex(h=>String(h||'').toLowerCase().includes('beneficio')||String(h||'').toLowerCase().includes('benefício'));
+    const bIdx = beneficioIdx>=0?beneficioIdx:1;
+    const nomeIdx = rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
+    const nIdx = nomeIdx>=0?nomeIdx:2;
     const isRMC = name.includes('RMC');
     const colIdx = isRMC ? ri : ci;
     const rowIdxArr = [];
@@ -2480,24 +2484,52 @@ function exportarEstudoCompleto() {
     }
     const HH = '<Cell ss:StyleID="RH"><Data ss:Type="String">';
     const HE = '</Data></Cell>';
-    const hdrCols = rawHeaders.map(h=>HH+sv(h)+HE).join('');
-    const hdrLimite = HH+'Limite Saque BMG (R$)'+HE;
-    const hdrRow = `<Row ss:Height="22">${hdrCols}${hdrLimite}</Row>`;
-    const parts = [`<Worksheet ss:Name="${sv(name)}"><Table ss:DefaultRowHeight="16">`, hdrRow];
+    const hdrRow = `<Row ss:Height="22">${HH}CPF${HE}${HH}Benefício${HE}${HH}Nome${HE}${HH}Limite Saque BMG (R$)${HE}</Row>`;
+    const parts = [`<Worksheet ss:Name="${sv(name)}"><Table ss:DefaultRowHeight="16">
+      <Column ss:Width="100"/>
+      <Column ss:Width="100"/>
+      <Column ss:Width="180"/>
+      <Column ss:Width="130"/>`, hdrRow];
     rowIdxArr.forEach((ri2,i) => {
       const row = rawSheetData[ri2];
       const g = i%2?'g':'';
       const cpf = cpfNorm(row[0]);
+      const beneficio = sv(row[bIdx]||'');
+      const nome = sv(row[nIdx]||'');
       const info = datafastResultsBMG[cpf];
       const lim = info && info.limite > 0 ? info.limite : null;
       const limCell = lim!==null
         ? `<Cell ss:StyleID="RT${g}"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
         : `<Cell ss:StyleID="RT${g}"><Data ss:Type="String">Sem limite</Data></Cell>`;
-      const cells = row.map(v=>`<Cell ss:StyleID="RT${g}"><Data ss:Type="String">${sv(v)}</Data></Cell>`).join('');
-      parts.push(`<Row>${cells}${limCell}</Row>`);
+      parts.push(`<Row>
+        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${cpf}</Data></Cell>
+        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${beneficio}</Data></Cell>
+        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${nome}</Data></Cell>
+        ${limCell}
+      </Row>`);
     });
     parts.push('</Table></Worksheet>');
     return parts.join('\n');
+  }
+
+  // === ABAS DO FÊNIX EXCETO RMC/RCC BMG ===
+  function buildAbasFenicExcetoBMG() {
+    const rmcRcc = buildRmcRccXml();
+    if (!rmcRcc) return '';
+    const sheets = rmcRcc.sheets;
+    // Ordem: RMC BMG(4col), Resumo Cartão, outras abas, RCC BMG(4col), demais
+    // sheets[0]=Base, [1]=RMC BMG, [2]=RMC PAN, [3]=RMC DAYCOVAL,
+    // [4]=RCC BMG, [5]=RCC PAN, [6]=RCC DAYCOVAL, [7]=SEM RMC, [8]=SEM RCC, [9]=Resumo
+    const abasExtras = `
+${buildAbaBMG('RMC BMG','318')}
+${sheets[2]}
+${sheets[3]}
+${buildAbaBMG('RCC BMG','318')}
+${sheets[5]}
+${sheets[6]}
+${sheets[7]}
+${sheets[8]}`;
+    return abasExtras;
   }
 
   // === MONTA XML COMPLETO ===
@@ -2510,8 +2542,7 @@ function exportarEstudoCompleto() {
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
 <Styles>${STYLES}</Styles>
 ${buildResumo()}
-${buildAbaBMG('RMC BMG','318')}
-${buildAbaBMG('RCC BMG','318')}
+${buildAbasFenicExcetoBMG()}
 </Workbook>`;
 
   const blob = new Blob([xml], {type:'application/vnd.ms-excel'});
