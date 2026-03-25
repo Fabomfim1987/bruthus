@@ -2270,7 +2270,7 @@ ${buildAba('RCC BMG', rccBMG)}
 
 
 // ═══════════════════════════════════════════════════════════
-// ESTUDO COMPLETO — Resumo Portabilidade + Abas BMG + Fênix
+// ESTUDO COMPLETO — SheetJS xlsx (sem XML manual)
 // ═══════════════════════════════════════════════════════════
 function exportarEstudoCompleto() {
   if (!rawSheetData || !rawHeaders || rawSheetData.length < 2) {
@@ -2280,493 +2280,245 @@ function exportarEstudoCompleto() {
     showToast('Processe a base primeiro','error'); return;
   }
 
-  const sv = v => {
-    if (v === null || v === undefined) return '';
-    return String(v)
-      .replace(/&/g,'&amp;')
-      .replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;')
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,'')  // remove control chars
-      .replace(/\r\n|\r|\n/g,' ');  // newlines → space
-  };
-  const fmtN = v => {
-    const n = parseFloat(v);
-    return isNaN(n) ? 0 : Math.round(n*100)/100;
-  };
-  const fmtMoney = v => {
-    const n = fmtN(v);
-    return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  };
-
-  const temDatafast = Object.keys(datafastResultsBMG).length > 0;
-
-  // === MONTA RESUMO POR CLIENTE ===
-  const clienteMap = {};
-  allResults.forEach(r => {
-    const cpf = String(r.cpf||'').replace(/\D/g,'').padStart(11,'0');
-    if (!clienteMap[cpf]) {
-      clienteMap[cpf] = {
-        nome: r.nome, cpf, idade: r.idade, especie: r.especie,
-        melhorBanco: '', qtdContr: 0,
-        vlrPorto: 0, trocoPorto: 0,
-        vlrPMT: 0, trocoPMT: 0,
-        saqRMCBMG: 0, saqRCCBMG: 0, saqDAY: 0
-      };
-    }
-    const c = clienteMap[cpf];
-    c.qtdContr++;
-    if (r.elegivel) {
-      if (r.destino === 'PMT Baixa') {
-        c.vlrPMT += fmtN(r.valorContrato);
-        c.trocoPMT += fmtN(r.troco);
-        if (!c.melhorBanco) c.melhorBanco = r.destino;
-      } else {
-        c.vlrPorto += fmtN(r.valorContrato);
-        c.trocoPorto += fmtN(r.troco);
-        if (!c.melhorBanco) c.melhorBanco = r.destino;
-      }
-    }
-  });
-
-  // Injeta saques Datafast por CPF
-  if (temDatafast) {
-    const rmc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
-    const rcc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
-    const ri = rmc_i>=0?rmc_i:38;
-    const ci = rcc_i>=0?rcc_i:45;
-
-    for (let r=1; r<rawSheetData.length; r++) {
-      const row = rawSheetData[r];
-      if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
-      let cpf='';
-      try { cpf = String(parseInt(parseFloat(String(row[0])))).padStart(11,'0'); } catch(e){}
-      const info = datafastResultsBMG[cpf];
-      const lim = info && info.limite > 0 ? info.limite : 0;
-      if (!lim) continue;
-      const rmc = String(row[ri]||'').trim();
-      const rcc = String(row[ci]||'').trim();
-      if (!clienteMap[cpf]) continue;
-      if (rmc==='318') clienteMap[cpf].saqRMCBMG += lim;
-      if (rcc==='318') clienteMap[cpf].saqRCCBMG += lim;
-      if (rmc==='707'||rcc==='707') clienteMap[cpf].saqDAY += lim;
-    }
-  }
-
-  // Ordena por Líquido Total desc
-  const clientes = Object.values(clienteMap).map(c => {
-    c.vlrTotal = c.vlrPorto + c.vlrPMT;
-    c.trocoTotal = c.trocoPorto + c.trocoPMT;
-    c.liquido = c.vlrTotal + c.saqRMCBMG + c.saqRCCBMG + c.saqDAY;
-    return c;
-  }).sort((a,b) => b.liquido - a.liquido);
-
-  // KPIs
-  const totalClientes = clientes.length;
-  const totalContratos = clientes.reduce((s,c)=>s+c.qtdContr,0);
-  const totalVlrPorto = clientes.reduce((s,c)=>s+c.vlrPorto,0);
-  const totalVlrPMT = clientes.reduce((s,c)=>s+c.vlrPMT,0);
-  const totalSaqRMCBMG = clientes.reduce((s,c)=>s+c.saqRMCBMG,0);
-  const totalSaqRCCBMG = clientes.reduce((s,c)=>s+c.saqRCCBMG,0);
-  const totalSaqDAY = clientes.reduce((s,c)=>s+c.saqDAY,0);
-  const totalLiquido = clientes.reduce((s,c)=>s+c.liquido,0);
-  const ctRMCBMG = clientes.filter(c=>c.saqRMCBMG>0).length;
-  const ctRCCBMG = clientes.filter(c=>c.saqRCCBMG>0).length;
-  const ctDAY = clientes.filter(c=>c.saqDAY>0).length;
-
-  // === ESTILOS ===
-  const STYLES = `
-  <Style ss:ID="TITLE"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="13"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-  <Style ss:ID="KH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#2E75B6" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>
-  <Style ss:ID="KV"><Font ss:Bold="1" ss:Color="#2E75B6" ss:FontName="Arial" ss:Size="13"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#2E75B6"/></Borders></Style>
-  <Style ss:ID="SAQH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="10"/><Interior ss:Color="#2E86AB" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>
-  <Style ss:ID="SAQV"><Font ss:Bold="1" ss:Color="#2E86AB" ss:FontName="Arial" ss:Size="13"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#2E86AB"/></Borders></Style>
-  <Style ss:ID="LIQH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="11"/><Interior ss:Color="#833C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>
-  <Style ss:ID="LIQV"><Font ss:Bold="1" ss:Color="#833C00" ss:FontName="Arial" ss:Size="20"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Interior ss:Color="#FFF0E0" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#833C00"/></Borders></Style>
-  <Style ss:ID="H"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="HPMT"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#B85C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="HSAQ"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#2E75B6" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="HLIQ"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#833C00" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="T"><Font ss:FontName="Arial" ss:Size="9"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
-  <Style ss:ID="Tg"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
-  <Style ss:ID="M"><Font ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
-  <Style ss:ID="Mg"><Font ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
-  <Style ss:ID="MSAQ"><Font ss:Bold="1" ss:Color="#1A5276" ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
-  <Style ss:ID="MSAQg"><Font ss:Bold="1" ss:Color="#1A5276" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#EAF4FB" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
-  <Style ss:ID="MLIQ"><Font ss:Bold="1" ss:Color="#833C00" ss:FontName="Arial" ss:Size="9"/><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Interior ss:Color="#FFF0E0" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEEEEE"/></Borders></Style>
-  <Style ss:ID="RH"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Arial" ss:Size="9"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/></Borders></Style>
-  <Style ss:ID="RT"><Font ss:FontName="Arial" ss:Size="8"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
-  <Style ss:ID="RTg"><Font ss:FontName="Arial" ss:Size="8"/><Interior ss:Color="#F5F5F5" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDDDDD"/></Borders></Style>
-  <Style ss:ID="BLANK"><Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/></Style>`;
-
-  // === ABA RESUMO PORTABILIDADE ===
-  function buildResumo() {
-    const C = (style, type, val) => `<Cell ss:StyleID="${style}"><Data ss:Type="${type}">${sv(val)}</Data></Cell>`;
-    const BLANK = '<Cell ss:StyleID="BLANK"><Data ss:Type="String"> </Data></Cell>';
-    const MERGE = (style, cols, rows, type, val) => `<Cell ss:StyleID="${style}" ss:MergeAcross="${cols-1}" ss:MergeDown="${rows-1}"><Data ss:Type="${type}">${sv(val)}</Data></Cell>`;
-
-    let rows = [];
-    // Linha 1 — título
-    rows.push(`<Row ss:Height="28">${MERGE('TITLE',16,1,'String','RESUMO PORTABILIDADE — POR CLIENTE  |  Ordenado por Líquido Total')}</Row>`);
-    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
-    // Linha 3 — headers KPIs
-    rows.push(`<Row ss:Height="22">${C('KH','String','Total Clientes')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','Total Contratos')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','Vlr Contrato Portabilidade')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','Vlr Contrato PMT Baixa')}${C('KH','String','')}${C('KH','String','')}${C('KH','String','')}</Row>`);
-    // Linha 4 — valores KPIs
-    rows.push(`<Row ss:Height="30">${C('KV','Number',totalClientes)}${BLANK}${BLANK}${BLANK}${C('KV','Number',totalContratos)}${BLANK}${BLANK}${BLANK}${C('KV','Number',totalVlrPorto.toFixed(2))}${BLANK}${BLANK}${BLANK}${C('KV','Number',totalVlrPMT.toFixed(2))}${BLANK}${BLANK}${BLANK}</Row>`);
-    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
-    // Linha 6 — saques headers
-    rows.push(`<Row ss:Height="22">${MERGE('SAQH',4,1,'String','Saque RMC BMG ('+ctRMCBMG+' clientes)')}${BLANK}${BLANK}${BLANK}${MERGE('SAQH',4,1,'String','Saque RCC BMG ('+ctRCCBMG+' clientes)')}${BLANK}${BLANK}${BLANK}${MERGE('SAQH',4,1,'String','Saque Daycoval ('+ctDAY+' clientes)')}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
-    // Linha 7 — valores saques
-    rows.push(`<Row ss:Height="30">${C('SAQV','Number',totalSaqRMCBMG.toFixed(2))}${BLANK}${BLANK}${BLANK}${C('SAQV','Number',totalSaqRCCBMG.toFixed(2))}${BLANK}${BLANK}${BLANK}${C('SAQV','Number',totalSaqDAY.toFixed(2))}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
-    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
-    // Linha 9 — líquido total header
-    rows.push(`<Row ss:Height="22">${MERGE('LIQH',16,1,'String','LIQUIDO TOTAL  (Portabilidade + PMT Baixa + Saque Cartao)')}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
-    // Linha 10 — valor líquido
-    rows.push(`<Row ss:Height="45">${MERGE('LIQV',16,1,'Number',totalLiquido.toFixed(2))}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}${BLANK}</Row>`);
-    rows.push(`<Row ss:Height="6">${BLANK}</Row>`);
-    // Linha 12 — headers tabela
-    rows.push(`<Row ss:Height="36">${C('H','String','Nome')}${C('H','String','CPF')}${C('H','String','Idade')}${C('H','String','Espécie')}${C('H','String','Melhor Banco')}${C('H','String','Qtd Contr.')}${C('H','String','Vlr Cont. Portabilidade')}${C('H','String','Troco Portabilidade')}${C('HPMT','String','Vlr Cont. PMT Baixa')}${C('HPMT','String','Troco PMT Baixa')}${C('H','String','Vlr Cont. TOTAL')}${C('H','String','Troco TOTAL')}${C('HSAQ','String','Saque RMC BMG')}${C('HSAQ','String','Saque RCC BMG')}${C('HSAQ','String','Saque Daycoval')}${C('HLIQ','String','Liquido Total (Port.+PMT+Saque)')}</Row>`);
-
-    // Dados
-    clientes.forEach((c, i) => {
-      const g = i%2?'g':'';
-      const t = `T${g}`, m = `M${g}`, msaq=`MSAQ${g}`;
-      rows.push(`<Row ss:Height="18">
-        ${C(t,'String',c.nome)}
-        ${C(t,'String',c.cpf)}
-        ${C(t,'String',c.idade)}
-        ${C(t,'String',c.especie)}
-        ${C(t,'String',c.melhorBanco)}
-        ${C(t,'Number',c.qtdContr)}
-        ${C(m,'Number',c.vlrPorto.toFixed(2))}
-        ${C(m,'Number',c.trocoPorto.toFixed(2))}
-        ${C(m,'Number',c.vlrPMT.toFixed(2))}
-        ${C(m,'Number',c.trocoPMT.toFixed(2))}
-        ${C(m,'Number',c.vlrTotal.toFixed(2))}
-        ${C(m,'Number',c.trocoTotal.toFixed(2))}
-        ${C(msaq,'Number',c.saqRMCBMG.toFixed(2))}
-        ${C(msaq,'Number',c.saqRCCBMG.toFixed(2))}
-        ${C(msaq,'Number',c.saqDAY.toFixed(2))}
-        ${C('MLIQ','Number',c.liquido.toFixed(2))}
-      </Row>`);
-    });
-
-    return `<Worksheet ss:Name="Resumo Portabilidade"><Table ss:DefaultRowHeight="16">
-      <Column ss:Width="180"/>
-      <Column ss:Width="100"/>
-      <Column ss:Width="60"/>
-      <Column ss:Width="120"/>
-      <Column ss:Width="80"/>
-      <Column ss:Width="50"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="90"/>
-      <Column ss:Width="100"/>
-      ${rows.join('\n')}
-    </Table></Worksheet>`;
-  }
-
-  // === ABAS RMC/RCC BMG com Limite Datafast ===
-  function cpfNorm(v) {
-    try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); } catch(e) { return String(v||''); }
-  }
-  function buildAbaBMG(name, codigoBanco) {
-    const rmc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
-    const rcc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
-    const ri = rmc_i>=0?rmc_i:38;
-    const ci = rcc_i>=0?rcc_i:45;
-    const beneficioIdx = rawHeaders.findIndex(h=>String(h||'').toLowerCase().includes('beneficio')||String(h||'').toLowerCase().includes('benefício'));
-    const bIdx = beneficioIdx>=0?beneficioIdx:1;
-    const nomeIdx = rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
-    const nIdx = nomeIdx>=0?nomeIdx:2;
-    const isRMC = name.includes('RMC');
-    const colIdx = isRMC ? ri : ci;
-    const rowIdxArr = [];
-    for (let r=1;r<rawSheetData.length;r++) {
-      const row = rawSheetData[r];
-      if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
-      if (String(row[colIdx]||'').trim()===codigoBanco) rowIdxArr.push(r);
-    }
-    const HH = '<Cell ss:StyleID="RH"><Data ss:Type="String">';
-    const HE = '</Data></Cell>';
-    const hdrRow = `<Row ss:Height="22">${HH}CPF${HE}${HH}Benefício${HE}${HH}Nome${HE}${HH}Limite Saque BMG (R$)${HE}</Row>`;
-    const parts = [`<Worksheet ss:Name="${sv(name)}"><Table ss:DefaultRowHeight="16">
-      <Column ss:Width="100"/>
-      <Column ss:Width="100"/>
-      <Column ss:Width="180"/>
-      <Column ss:Width="130"/>`, hdrRow];
-    rowIdxArr.forEach((ri2,i) => {
-      const row = rawSheetData[ri2];
-      const g = i%2?'g':'';
-      const cpf = cpfNorm(row[0]);
-      const beneficio = sv(row[bIdx]||'');
-      const nome = sv(row[nIdx]||'');
-      const info = datafastResultsBMG[cpf];
-      const lim = info && info.limite > 0 ? info.limite : null;
-      const limCell = lim!==null
-        ? `<Cell ss:StyleID="RT${g}"><Data ss:Type="Number">${lim.toFixed(2)}</Data></Cell>`
-        : `<Cell ss:StyleID="RT${g}"><Data ss:Type="String">Sem limite</Data></Cell>`;
-      parts.push(`<Row>
-        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${cpf}</Data></Cell>
-        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${beneficio}</Data></Cell>
-        <Cell ss:StyleID="RT${g}"><Data ss:Type="String">${nome}</Data></Cell>
-        ${limCell}
-      </Row>`);
-    });
-    parts.push('</Table></Worksheet>');
-    return parts.join('\n');
-  }
-
-  // === ABA RESUMO CARTÃO ===
-  function buildResumoCartao() {
-    if (!rawSheetData || rawSheetData.length < 2) return '';
-    try {
-      const rmcI = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
-      const rccI = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
-      const ri = rmcI>=0?rmcI:38; const rci = rccI>=0?rccI:45;
-      const BMAP = {'318':'BMG','623':'PAN','707':'DAYCOVAL','33':'SANTANDER','465':'QUERO+',
-        '389':'MERCANTIL DO BRASIL','934':'BANCO CETELEM','237':'BRADESCO','935':'FACTA',
-        '121':'AGIBANK','104':'CAIXA ECONÔMICA','41':'BANRISUL','243':'BANCO MASTER',
-        '903':'BANCO DO BRASIL','999':'DIVERSOS','643':'PINE','422':'SAFRA',
-        '908':'PORTOCRED','254':'PARANÁ BANCO','79':'ORIGINAL','329':'QI TECH',
-        '626':'C6','1':'BANCO DO BRASIL','29':'ITAU','341':'ITAU','81':'BRB',
-        '386':'NU FINANCEIRA','330':'PARATI','359':'ZEMA'};
-      const HL = new Set(['318','623','707']);
-      const rmcCnt={}, rccCnt={};
-      let semRMC=0, semRCC=0;
-      for (let r=1; r<rawSheetData.length; r++) {
-        const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2])) continue;
-        const rmc=String(row[ri]||'').trim(); const rcc=String(row[rci]||'').trim();
-        if (rmc&&rmc!=='null'&&rmc!=='undefined'&&rmc!=='0') rmcCnt[rmc]=(rmcCnt[rmc]||0)+1;
-        else semRMC++;
-        if (rcc&&rcc!=='null'&&rcc!=='undefined'&&rcc!=='0') rccCnt[rcc]=(rccCnt[rcc]||0)+1;
-        else semRCC++;
-      }
-      const allB = Array.from(new Set([...Object.keys(rmcCnt),...Object.keys(rccCnt)]))
-        .sort((a,b)=>((rmcCnt[b]||0)+(rccCnt[b]||0))-((rmcCnt[a]||0)+(rccCnt[a]||0)));
-      const totRMC=Object.values(rmcCnt).reduce((t,v)=>t+v,0);
-      const totRCC=Object.values(rccCnt).reduce((t,v)=>t+v,0);
-      const HRC=`<Cell ss:StyleID="RH"><Data ss:Type="String">`;
-      const HE=`</Data></Cell>`;
-      let out=`<Worksheet ss:Name="Resumo Cartão"><Table ss:DefaultRowHeight="18">
-<Column ss:Width="70"/><Column ss:Width="160"/><Column ss:Width="100"/><Column ss:Width="100"/><Column ss:Width="100"/><Column ss:Width="100"/>
-<Row ss:Height="36"><Cell ss:MergeAcross="5" ss:StyleID="TITLE"><Data ss:Type="String">RESUMO CARTÃO  —  RMC / RCC</Data></Cell></Row>
-<Row ss:Height="6"><Cell ss:StyleID="BLANK"><Data ss:Type="String"> </Data></Cell></Row>
-<Row ss:Height="24">
-  <Cell ss:MergeAcross="1" ss:StyleID="KH"><Data ss:Type="String">Total CPF com RMC</Data></Cell>
-  <Cell ss:MergeAcross="1" ss:StyleID="SAQH"><Data ss:Type="String">Total CPF com RCC</Data></Cell>
-  <Cell ss:StyleID="KH"><Data ss:Type="String">Total SEM RMC</Data></Cell>
-  <Cell ss:StyleID="LIQH"><Data ss:Type="String">Total SEM RCC</Data></Cell>
-</Row>
-<Row ss:Height="30">
-  <Cell ss:MergeAcross="1" ss:StyleID="KV"><Data ss:Type="Number">${totRMC}</Data></Cell>
-  <Cell ss:MergeAcross="1" ss:StyleID="SAQV"><Data ss:Type="Number">${totRCC}</Data></Cell>
-  <Cell ss:StyleID="KV"><Data ss:Type="Number">${semRMC}</Data></Cell>
-  <Cell ss:StyleID="LIQV"><Data ss:Type="Number">${semRCC}</Data></Cell>
-</Row>
-<Row ss:Height="6"><Cell ss:StyleID="BLANK"><Data ss:Type="String"> </Data></Cell></Row>
-<Row ss:Height="24">${HRC}Código${HE}${HRC}Nome do Banco${HE}${HRC}Total CPF RMC${HE}${HRC}Total CPF RCC${HE}${HRC}Total SEM RMC${HE}${HRC}Total SEM RCC${HE}</Row>\n`;
-      allB.forEach((code,i) => {
-        const hl=HL.has(code); const g=i%2?'g':'';
-        const ts=hl?(i%2?'RTg':'RT'):`RT${g}`; const ns='RT';
-        out+=`<Row><Cell ss:StyleID="${ts}"><Data ss:Type="String">${sv(code)}</Data></Cell><Cell ss:StyleID="${ts}"><Data ss:Type="String">${sv(BMAP[code]||('Banco '+code))}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${rmcCnt[code]||0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${rccCnt[code]||0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRMC:0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRCC:0}</Data></Cell></Row>\n`;
-      });
-      out+=`<Row><Cell ss:StyleID="RH"><Data ss:Type="String">TOTAL</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totRMC}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totRCC}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${semRMC}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${semRCC}</Data></Cell></Row>
-</Table></Worksheet>`;
-      return out;
-    } catch(e) { console.error('Resumo Cartão EC error:',e); return ''; }
-  }
-
-  // === ABA ANALÍTICO PMT BANCO DE ORIGEM ===
-  function buildAnaliticoPMTOrigem() {
-    // Todos os contratos porto (não-PMT) agrupados por banco de origem
-    const bancoMap={};
-    allResults.filter(r=>r.elegivel && r.destino!=='PMT Baixa').forEach(r=>{
-      const b=String(r.bancoOrigem||'Desconhecido');
-      if(!bancoMap[b]) bancoMap[b]={sd:0,cnt:0,sp:0};
-      bancoMap[b].sd+=fmtN(r.saldo);
-      bancoMap[b].cnt++;
-      bancoMap[b].sp+=fmtN(r.parcela);
-    });
-    const rows=Object.entries(bancoMap).map(([b,v])=>({b,sd:v.sd,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.sd-a.sd);
-    const totSD=rows.reduce((t,r)=>t+r.sd,0);
-    const totCnt=rows.reduce((t,r)=>t+r.cnt,0);
-    const totMed=totCnt?rows.reduce((t,r)=>t+r.med*r.cnt,0)/totCnt:0;
-    const H=`<Cell ss:StyleID="H"><Data ss:Type="String">`;
-    const HE=`</Data></Cell>`;
-    let out=`<Worksheet ss:Name="Analítico PMT Banco de Origem"><Table ss:DefaultRowHeight="16">
-<Column ss:Width="160"/><Column ss:Width="120"/><Column ss:Width="80"/><Column ss:Width="100"/>
-<Row ss:Height="26">${H}Banco Origem${HE}${H}Soma Saldo Devedor${HE}${H}Contagem Parcelas${HE}${H}Média Parcela${HE}</Row>\n`;
-    rows.forEach((r,i)=>{
-      const g=i%2?'g':'';
-      out+=`<Row><Cell ss:StyleID="T${g}"><Data ss:Type="String">${sv(r.b)}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.sd*100)/100}</Data></Cell><Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.cnt}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.med*100)/100}</Data></Cell></Row>\n`;
-    });
-    out+=`<Row><Cell ss:StyleID="RH"><Data ss:Type="String">Total Geral</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totSD*100)/100}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totCnt}</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totMed*100)/100}</Data></Cell></Row>
-</Table></Worksheet>`;
-    return out;
-  }
-
-  // === ABA ANALÍTICO BANCOS PMT BAIXA ===
-  function buildAnaliticoPMTBaixa() {
-    const pmtArr=allResults.filter(r=>r.elegivel && r.destino==='PMT Baixa');
-    const bancoMap={};
-    pmtArr.forEach(r=>{
-      const b=String(r.bancoOrigem||'Desconhecido');
-      if(!bancoMap[b]) bancoMap[b]={vc:0,tr:0,cnt:0,sp:0};
-      bancoMap[b].vc+=fmtN(r.valorContrato);
-      bancoMap[b].tr+=fmtN(r.troco);
-      bancoMap[b].cnt++;
-      bancoMap[b].sp+=fmtN(r.parcela);
-    });
-    const rows=Object.entries(bancoMap).map(([b,v])=>({b,vc:v.vc,tr:v.tr,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.tr-a.tr);
-    const totVC=rows.reduce((t,r)=>t+r.vc,0);
-    const totTR=rows.reduce((t,r)=>t+r.tr,0);
-    const totCnt=rows.reduce((t,r)=>t+r.cnt,0);
-    const totMed=totCnt?rows.reduce((t,r)=>t+r.med*r.cnt,0)/totCnt:0;
-    const HPMT=`<Cell ss:StyleID="HPMT"><Data ss:Type="String">`;
-    const HE=`</Data></Cell>`;
-    let out=`<Worksheet ss:Name="Analítico Bancos PMT Baixa"><Table ss:DefaultRowHeight="16">
-<Column ss:Width="160"/><Column ss:Width="120"/><Column ss:Width="100"/><Column ss:Width="80"/><Column ss:Width="100"/>
-<Row ss:Height="26">${HPMT}Banco Origem${HE}${HPMT}Soma Vlr Contrato${HE}${HPMT}Soma Troco${HE}${HPMT}Contagem Parcelas${HE}${HPMT}Média Parcela${HE}</Row>\n`;
-    rows.forEach((r,i)=>{
-      const g=i%2?'g':'';
-      out+=`<Row><Cell ss:StyleID="T${g}"><Data ss:Type="String">${sv(r.b)}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.vc*100)/100}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.tr*100)/100}</Data></Cell><Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.cnt}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.med*100)/100}</Data></Cell></Row>\n`;
-    });
-    out+=`<Row><Cell ss:StyleID="RH"><Data ss:Type="String">Total Geral</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totVC*100)/100}</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totTR*100)/100}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totCnt}</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totMed*100)/100}</Data></Cell></Row>
-</Table></Worksheet>`;
-    return out;
-  }
-
-  // === ABA ELEGÍVEIS (todas as parcelas, Sim e Não) ===
-  function buildElegiveisEC() {
-    const bancoCor=(dest)=>{
-      const d=(dest||'').toLowerCase();
-      if(d.includes('finanto'))return'FFF2CC'; if(d.includes('brb'))return'DEEAF1';
-      if(d.includes('digio'))return'E2EFDA'; if(d.includes('nossa'))return'F4CCFF';
-      if(d.includes('pmt'))return'FCE4D6'; return null;
-    };
-    const fmtCoef=v=>{const n=parseFloat(v);return isNaN(n)?0:Math.round(n*100000)/100000;};
-    const H=`<Cell ss:StyleID="H"><Data ss:Type="String">`;
-    const HE=`</Data></Cell>`;
-    let out=`<Worksheet ss:Name="Elegíveis"><Table ss:DefaultRowHeight="15">
-<Column ss:Width="90"/><Column ss:Width="180"/><Column ss:Width="50"/><Column ss:Width="200"/>
-<Column ss:Width="140"/><Column ss:Width="110"/><Column ss:Width="60"/><Column ss:Width="80"/>
-<Column ss:Width="60"/><Column ss:Width="100"/><Column ss:Width="55"/><Column ss:Width="65"/>
-<Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="50"/><Column ss:Width="200"/>
-<Row ss:Height="28">${H}CPF${HE}${H}Nome${HE}${H}Idade${HE}${H}Espécie${HE}${H}Banco Origem${HE}${H}Contrato${HE}${H}Parcela${HE}${H}Saldo Devedor${HE}${H}Prazo${HE}${H}Banco Prioritário${HE}${H}Taxa Aplicada${HE}${H}Coeficiente${HE}${H}Valor Contrato${HE}${H}Troco${HE}${H}Elegível${HE}${H}Motivo${HE}</Row>\n`;
-    allResults.forEach((r,idx)=>{
-      const cor=r.elegivel?(bancoCor(r.destino)||'none'):(idx%2===0?'gray':'none');
-      const T=cor==='none'?'T':cor==='gray'?'Tg':'T'+cor;
-      const Mo=cor==='none'?'M':cor==='gray'?'Mg':'M'+cor;
-      const Po=cor==='none'?'M':cor==='gray'?'Mg':'M'+cor;
-      const Co=cor==='none'?'M':cor==='gray'?'Mg':'M'+cor;
-      out+=`<Row><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.cpf)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.nome)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.idade)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.especie)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.bancoOrigem)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.contrato)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.parcela)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.saldo)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.prazo)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.destino)}</Data></Cell><Cell ss:StyleID="${Po}"><Data ss:Type="Number">${fmtN(r.taxa)}</Data></Cell><Cell ss:StyleID="${Co}"><Data ss:Type="Number">${fmtCoef(r.coef)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.valorContrato)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.troco)}</Data></Cell><Cell ss:StyleID="${r.elegivel?'KH':'HPMT'}"><Data ss:Type="String">${r.elegivel?'Sim':'Não'}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.motivo)}</Data></Cell></Row>\n`;
-    });
-    out+=`</Table></Worksheet>`;
-    return out;
-  }
-
-  // === ABAS RMC/RCC slim (CPF + Benefício + Nome) ===
-  function buildAbaSlim(tabName, codigoBanco, tipoCol) {
-    // tipoCol: 'RMC' or 'RCC' or 'SEM_RMC' or 'SEM_RCC'
-    const rmc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
-    const rcc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
-    const ri = rmc_i>=0?rmc_i:38;
-    const ci = rcc_i>=0?rcc_i:45;
-    const beneficioIdx = rawHeaders.findIndex(h=>String(h||'').toLowerCase().includes('beneficio')||String(h||'').toLowerCase().includes('benefício'));
-    const bIdx = beneficioIdx>=0?beneficioIdx:1;
-    const nomeIdx = rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
-    const nIdx = nomeIdx>=0?nomeIdx:2;
-
-    const rowIdxArr = [];
-    for (let r=1; r<rawSheetData.length; r++) {
-      const row = rawSheetData[r];
-      if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
-      const rmc = String(row[ri]||'').trim();
-      const rcc = String(row[ci]||'').trim();
-      if (tipoCol==='SEM_RMC') { if (!rmc||rmc==='null'||rmc==='undefined'||rmc==='0') rowIdxArr.push(r); }
-      else if (tipoCol==='SEM_RCC') { if (!rcc||rcc==='null'||rcc==='undefined'||rcc==='0') rowIdxArr.push(r); }
-      else if (tipoCol==='RMC') { if (rmc===codigoBanco) rowIdxArr.push(r); }
-      else if (tipoCol==='RCC') { if (rcc===codigoBanco) rowIdxArr.push(r); }
-    }
-
-    const HH = '<Cell ss:StyleID="RH"><Data ss:Type="String">';
-    const HE = '</Data></Cell>';
-    const hdrRow = `<Row ss:Height="22">${HH}CPF${HE}${HH}Beneficio${HE}${HH}Nome${HE}</Row>`;
-    const parts = [`<Worksheet ss:Name="${sv(tabName)}"><Table ss:DefaultRowHeight="16">
-<Column ss:Width="110"/><Column ss:Width="100"/><Column ss:Width="200"/>`, hdrRow];
-    rowIdxArr.forEach((ri2,i) => {
-      const row = rawSheetData[ri2];
-      const g = i%2?'g':'';
-      const cpf = cpfNorm(row[0]);
-      const beneficio = sv(row[bIdx]||'');
-      const nome = sv(row[nIdx]||'');
-      parts.push(`<Row><Cell ss:StyleID="RT${g}"><Data ss:Type="String">${cpf}</Data></Cell><Cell ss:StyleID="RT${g}"><Data ss:Type="String">${beneficio}</Data></Cell><Cell ss:StyleID="RT${g}"><Data ss:Type="String">${nome}</Data></Cell></Row>`);
-    });
-    parts.push('</Table></Worksheet>');
-    return parts.join('\n');
-  }
-
-  // === ABAS CARTÃO (13 abas total) ===
-  function buildAbasCartao() {
-    return [
-      buildAbaBMG('RMC BMG','318'),
-      buildAbaSlim('RMC PAN','623','RMC'),
-      buildAbaSlim('RMC DAYCOVAL','707','RMC'),
-      buildAbaBMG('RCC BMG','318'),
-      buildAbaSlim('RCC PAN','623','RCC'),
-      buildAbaSlim('RCC DAYCOVAL','707','RCC'),
-      buildAbaSlim('SEM RMC','','SEM_RMC'),
-      buildAbaSlim('SEM RCC','','SEM_RCC')
-    ].join('\n');
-  }
-
-  // === MONTA XML COMPLETO ===
-  const d = new Date();
-  const fileName = `Estudo_Completo_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.xls`;
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Styles>${STYLES}</Styles>
-${buildResumo()}
-${buildResumoCartao()}
-${buildAnaliticoPMTOrigem()}
-${buildAnaliticoPMTBaixa()}
-${buildElegiveisEC()}
-${buildAbasCartao()}
-</Workbook>`;
-
-  // Validate XML before download
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, 'application/xml');
-    const parseErr = doc.querySelector('parsererror');
-    if (parseErr) {
-      console.error('[EC] XML invalido:', parseErr.textContent);
-      showToast('Erro XML: verifique console (F12)', 'error');
-      return;
+    const wb = XLSX.utils.book_new();
+    const fmtN = v => { const n = parseFloat(v); return isNaN(n) ? 0 : Math.round(n*100)/100; };
+    const isPMT = r => (r.destino||'').toLowerCase().includes('pmt');
+
+    // ── helpers ──────────────────────────────────────────────
+    function addSheet(wb, name, aoaData) {
+      const ws = XLSX.utils.aoa_to_sheet(aoaData);
+      XLSX.utils.book_append_sheet(wb, ws, name);
+      return ws;
     }
-  } catch(ve) { console.warn('[EC] Validacao XML:', ve); }
 
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + xml], {type:'application/vnd.ms-excel;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-  showToast('Estudo Completo exportado!','success');
+    function cpfNorm(v) {
+      try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); } catch(e) { return String(v||''); }
+    }
 
+    // ── 1. RESUMO PORTABILIDADE ───────────────────────────────
+    const clienteMap = {};
+    allResults.forEach(r => {
+      const cpf = cpfNorm(r.cpf);
+      if (!clienteMap[cpf]) clienteMap[cpf] = {
+        nome:r.nome, cpf, idade:r.idade, especie:r.especie,
+        melhorBanco:'', qtdContr:0,
+        vlrPorto:0, trocoPorto:0, vlrPMT:0, trocoPMT:0,
+        saqRMCBMG:0, saqRCCBMG:0, saqDAY:0
+      };
+      const c = clienteMap[cpf];
+      c.qtdContr++;
+      if (r.elegivel) {
+        if (isPMT(r)) { c.vlrPMT += fmtN(r.valorContrato); c.trocoPMT += fmtN(r.troco); }
+        else          { c.vlrPorto += fmtN(r.valorContrato); c.trocoPorto += fmtN(r.troco); }
+        if (!c.melhorBanco) c.melhorBanco = r.destino;
+      }
+    });
+
+    // Injeta saques Datafast
+    const temDatafast = Object.keys(datafastResultsBMG).length > 0;
+    if (temDatafast) {
+      const rmc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+      const rcc_i = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+      const ri = rmc_i>=0?rmc_i:38, ci = rcc_i>=0?rcc_i:45;
+      for (let r=1; r<rawSheetData.length; r++) {
+        const row = rawSheetData[r];
+        if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
+        const cpf = cpfNorm(row[0]);
+        const info = datafastResultsBMG[cpf];
+        const lim = info && info.limite > 0 ? info.limite : 0;
+        if (!lim || !clienteMap[cpf]) continue;
+        const rmc = String(row[ri]||'').trim();
+        const rcc = String(row[ci]||'').trim();
+        if (rmc==='318') clienteMap[cpf].saqRMCBMG += lim;
+        if (rcc==='318') clienteMap[cpf].saqRCCBMG += lim;
+        if (rmc==='707'||rcc==='707') clienteMap[cpf].saqDAY += lim;
+      }
+    }
+
+    const clientes = Object.values(clienteMap).map(c => {
+      c.vlrTotal = c.vlrPorto + c.vlrPMT;
+      c.trocoTotal = c.trocoPorto + c.trocoPMT;
+      c.liquido = c.vlrTotal + c.saqRMCBMG + c.saqRCCBMG + c.saqDAY;
+      return c;
+    }).sort((a,b) => b.liquido - a.liquido);
+
+    const totCli = clientes.length;
+    const totContr = clientes.reduce((s,c)=>s+c.qtdContr,0);
+    const totPorto = clientes.reduce((s,c)=>s+c.vlrPorto,0);
+    const totPMT = clientes.reduce((s,c)=>s+c.vlrPMT,0);
+    const totSaqRMC = clientes.reduce((s,c)=>s+c.saqRMCBMG,0);
+    const totSaqRCC = clientes.reduce((s,c)=>s+c.saqRCCBMG,0);
+    const totSaqDAY = clientes.reduce((s,c)=>s+c.saqDAY,0);
+    const totLiq = clientes.reduce((s,c)=>s+c.liquido,0);
+
+    const rp_rows = [
+      ['RESUMO PORTABILIDADE — POR CLIENTE | Ordenado por Liquido Total'],
+      [],
+      ['Total Clientes','','Total Contratos','','Vlr Porto','','Vlr PMT',''],
+      [totCli,'',totContr,'',totPorto,'',totPMT,''],
+      [],
+      ['Saque RMC BMG','','Saque RCC BMG','','Saque Daycoval','','',''],
+      [totSaqRMC,'',totSaqRCC,'',totSaqDAY,'','',''],
+      [],
+      ['LIQUIDO TOTAL (Porto + PMT + Saque)'],
+      [totLiq],
+      [],
+      ['Nome','CPF','Idade','Especie','Melhor Banco','Qtd Contr.',
+       'Vlr Cont. Porto','Troco Porto','Vlr Cont. PMT','Troco PMT',
+       'Vlr Cont. TOTAL','Troco TOTAL','Saque RMC BMG','Saque RCC BMG','Saque Daycoval','Liquido Total']
+    ];
+    clientes.forEach(c => {
+      rp_rows.push([c.nome, c.cpf, c.idade, c.especie, c.melhorBanco, c.qtdContr,
+        c.vlrPorto, c.trocoPorto, c.vlrPMT, c.trocoPMT,
+        c.vlrTotal, c.trocoTotal, c.saqRMCBMG, c.saqRCCBMG, c.saqDAY, c.liquido]);
+    });
+    rp_rows.push(['TOTAL GERAL','','','','',totContr,
+      clientes.reduce((s,c)=>s+c.vlrPorto,0), clientes.reduce((s,c)=>s+c.trocoPorto,0),
+      clientes.reduce((s,c)=>s+c.vlrPMT,0), clientes.reduce((s,c)=>s+c.trocoPMT,0),
+      clientes.reduce((s,c)=>s+c.vlrTotal,0), clientes.reduce((s,c)=>s+c.trocoTotal,0),
+      totSaqRMC, totSaqRCC, totSaqDAY, totLiq]);
+    addSheet(wb, 'Resumo Portabilidade', rp_rows);
+
+    // ── 2. RESUMO CARTAO ─────────────────────────────────────
+    const rmc_i2 = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+    const rcc_i2 = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+    const ri2 = rmc_i2>=0?rmc_i2:38, ci2 = rcc_i2>=0?rcc_i2:45;
+    const BMAP = {'318':'BMG','623':'PAN','707':'DAYCOVAL','33':'SANTANDER','465':'QUERO+',
+      '389':'MERCANTIL DO BRASIL','934':'BANCO CETELEM','237':'BRADESCO','935':'FACTA',
+      '121':'AGIBANK','104':'CAIXA ECONOMICA','41':'BANRISUL','243':'BANCO MASTER',
+      '903':'BANCO DO BRASIL','626':'C6','81':'BRB','386':'NU FINANCEIRA',
+      '254':'PARANA BANCO','79':'ORIGINAL','329':'QI TECH','643':'PINE','422':'SAFRA'};
+    const rmcCnt2={}, rccCnt2={}; let semRMC2=0, semRCC2=0;
+    for (let r=1; r<rawSheetData.length; r++) {
+      const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2])) continue;
+      const rmc=String(row[ri2]||'').trim(), rcc=String(row[ci2]||'').trim();
+      if (rmc&&rmc!=='null'&&rmc!=='undefined'&&rmc!=='0') rmcCnt2[rmc]=(rmcCnt2[rmc]||0)+1; else semRMC2++;
+      if (rcc&&rcc!=='null'&&rcc!=='undefined'&&rcc!=='0') rccCnt2[rcc]=(rccCnt2[rcc]||0)+1; else semRCC2++;
+    }
+    const allBanks2 = Array.from(new Set([...Object.keys(rmcCnt2),...Object.keys(rccCnt2)]))
+      .sort((a,b)=>((rmcCnt2[b]||0)+(rccCnt2[b]||0))-((rmcCnt2[a]||0)+(rccCnt2[a]||0)));
+    const rc_rows = [
+      ['RESUMO CARTAO — RMC / RCC'],
+      [],
+      ['Total CPF com RMC', Object.values(rmcCnt2).reduce((s,v)=>s+v,0),
+       'Total CPF com RCC', Object.values(rccCnt2).reduce((s,v)=>s+v,0),
+       'Total SEM RMC', semRMC2, 'Total SEM RCC', semRCC2],
+      [],
+      ['Codigo','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC']
+    ];
+    allBanks2.forEach((code,i) => {
+      rc_rows.push([code, BMAP[code]||('Banco '+code), rmcCnt2[code]||0, rccCnt2[code]||0,
+        i===0?semRMC2:0, i===0?semRCC2:0]);
+    });
+    rc_rows.push(['TOTAL','',
+      Object.values(rmcCnt2).reduce((s,v)=>s+v,0),
+      Object.values(rccCnt2).reduce((s,v)=>s+v,0),
+      semRMC2, semRCC2]);
+    addSheet(wb, 'Resumo Cartao', rc_rows);
+
+    // ── 3. ANALITICO PMT BANCO DE ORIGEM ─────────────────────
+    const bancoMapPorto={};
+    allResults.filter(r=>r.elegivel&&!isPMT(r)).forEach(r=>{
+      const b=String(r.bancoOrigem||'Desconhecido');
+      if(!bancoMapPorto[b]) bancoMapPorto[b]={sd:0,cnt:0,sp:0};
+      bancoMapPorto[b].sd+=fmtN(r.saldo); bancoMapPorto[b].cnt++; bancoMapPorto[b].sp+=fmtN(r.parcela);
+    });
+    const tab3 = Object.entries(bancoMapPorto)
+      .map(([b,v])=>({b,sd:v.sd,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0}))
+      .sort((a,b2)=>b2.sd-a.sd);
+    const apo_rows = [['Banco Origem','Soma Saldo Devedor','Contagem Parcelas','Media Parcela']];
+    tab3.forEach(r => apo_rows.push([r.b, fmtN(r.sd), r.cnt, fmtN(r.med)]));
+    const apoCnt = tab3.reduce((s,r)=>s+r.cnt,0);
+    apo_rows.push(['Total Geral',
+      fmtN(tab3.reduce((s,r)=>s+r.sd,0)), apoCnt,
+      apoCnt ? fmtN(allResults.filter(r=>r.elegivel&&!isPMT(r)).reduce((s,r)=>s+fmtN(r.parcela),0)/apoCnt) : 0]);
+    addSheet(wb, 'Analitico PMT Banco Origem', apo_rows);
+
+    // ── 4. ANALITICO BANCOS PMT BAIXA ────────────────────────
+    const bancoMapPMT={};
+    allResults.filter(r=>r.elegivel&&isPMT(r)).forEach(r=>{
+      const b=String(r.bancoOrigem||'Desconhecido');
+      if(!bancoMapPMT[b]) bancoMapPMT[b]={vc:0,tr:0,cnt:0,sp:0};
+      bancoMapPMT[b].vc+=fmtN(r.valorContrato); bancoMapPMT[b].tr+=fmtN(r.troco);
+      bancoMapPMT[b].cnt++; bancoMapPMT[b].sp+=fmtN(r.parcela);
+    });
+    const tab4 = Object.entries(bancoMapPMT)
+      .map(([b,v])=>({b,vc:v.vc,tr:v.tr,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0}))
+      .sort((a,b2)=>b2.tr-a.tr);
+    const apb_rows = [['Banco Origem','Soma Vlr Contrato','Soma Troco','Contagem Parcelas','Media Parcela']];
+    tab4.forEach(r => apb_rows.push([r.b, fmtN(r.vc), fmtN(r.tr), r.cnt, fmtN(r.med)]));
+    const apbCnt = tab4.reduce((s,r)=>s+r.cnt,0);
+    apb_rows.push(['Total Geral',
+      fmtN(tab4.reduce((s,r)=>s+r.vc,0)), fmtN(tab4.reduce((s,r)=>s+r.tr,0)), apbCnt,
+      apbCnt ? fmtN(allResults.filter(r=>r.elegivel&&isPMT(r)).reduce((s,r)=>s+fmtN(r.parcela),0)/apbCnt) : 0]);
+    addSheet(wb, 'Analitico Bancos PMT Baixa', apb_rows);
+
+    // ── 5. ELEGIVEIS ─────────────────────────────────────────
+    const el_rows = [['CPF','Nome','Idade','Especie','Banco Origem','Contrato',
+      'Parcela','Saldo Devedor','Prazo','Banco Prioritario','Taxa Aplicada',
+      'Coeficiente','Valor Contrato','Troco','Elegivel','Motivo']];
+    allResults.forEach(r => {
+      el_rows.push([r.cpf, r.nome, r.idade, r.especie, r.bancoOrigem, r.contrato,
+        fmtN(r.parcela), fmtN(r.saldo), r.prazo, r.destino,
+        fmtN(r.taxa), r.coef ? Math.round(r.coef*100000)/100000 : 0,
+        fmtN(r.valorContrato), fmtN(r.troco),
+        r.elegivel ? 'Sim' : 'Nao', r.motivo||'']);
+    });
+    addSheet(wb, 'Elegiveis', el_rows);
+
+    // ── 6–13. ABAS CARTAO (CPF + Beneficio + Nome + Limite) ──
+    function buildAbaCartaoXLSX(tabName, codigoBanco, tipoCol) {
+      const rmc_ic = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+      const rcc_ic = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+      const ric = rmc_ic>=0?rmc_ic:38, cic = rcc_ic>=0?rcc_ic:45;
+      const bIdx = rawHeaders.findIndex(h=>String(h||'').toLowerCase().includes('beneficio')||String(h||'').toLowerCase().includes('benefício'));
+      const nIdx = rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
+      const bI = bIdx>=0?bIdx:1, nI = nIdx>=0?nIdx:2;
+      const hdr = ['CPF','Beneficio','Nome'];
+      if (temDatafast) hdr.push('Limite Saque BMG (R$)');
+      const rows = [hdr];
+      for (let r=1; r<rawSheetData.length; r++) {
+        const row = rawSheetData[r];
+        if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
+        const rmc = String(row[ric]||'').trim(), rcc = String(row[cic]||'').trim();
+        let include = false;
+        if (tipoCol==='SEM_RMC') include = (!rmc||rmc==='null'||rmc==='undefined'||rmc==='0');
+        else if (tipoCol==='SEM_RCC') include = (!rcc||rcc==='null'||rcc==='undefined'||rcc==='0');
+        else if (tipoCol==='RMC') include = (rmc===codigoBanco);
+        else if (tipoCol==='RCC') include = (rcc===codigoBanco);
+        if (!include) continue;
+        const cpf = cpfNorm(row[0]);
+        const dataRow = [cpf, String(row[bI]||''), String(row[nI]||'')];
+        if (temDatafast) {
+          const info = datafastResultsBMG[cpf];
+          dataRow.push(info && info.limite > 0 ? info.limite : 'Sem limite');
+        }
+        rows.push(dataRow);
+      }
+      addSheet(wb, tabName, rows);
+    }
+
+    buildAbaCartaoXLSX('RMC BMG',    '318', 'RMC');
+    buildAbaCartaoXLSX('RMC PAN',    '623', 'RMC');
+    buildAbaCartaoXLSX('RMC DAYCOVAL','707','RMC');
+    buildAbaCartaoXLSX('RCC BMG',    '318', 'RCC');
+    buildAbaCartaoXLSX('RCC PAN',    '623', 'RCC');
+    buildAbaCartaoXLSX('RCC DAYCOVAL','707','RCC');
+    buildAbaCartaoXLSX('SEM RMC',    '',   'SEM_RMC');
+    buildAbaCartaoXLSX('SEM RCC',    '',   'SEM_RCC');
+
+    // ── DOWNLOAD ─────────────────────────────────────────────
+    const d = new Date();
+    const fileName = `Estudo_Completo_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showToast('Estudo Completo exportado!','success');
+
+  } catch(err) {
+    console.error('[Estudo Completo] Erro:', err);
+    showToast('Erro ao exportar: ' + String(err.message||err).slice(0,80), 'error');
+  }
+}
 
 // Init
 renderHistorico();
