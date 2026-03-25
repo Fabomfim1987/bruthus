@@ -2295,10 +2295,12 @@ function exportarEstudoCompleto() {
 
     function cs(v, fillRgb, bold, sz, fgColor, halign, numFmt, wrap) {
       const s = {
-        fill:  fill(fillRgb),
-        font:  font(bold, sz, fgColor||'000000'),
-        alignment: aln(halign||'left','center', wrap||false)
+        font:  font(!!bold, sz||9, fgColor||'000000'),
+        alignment: aln(halign||'left','center', !!wrap)
       };
+      if (fillRgb && fillRgb !== '00000000' && fillRgb !== 'transparent') {
+        s.fill = fill(fillRgb);
+      }
       if (numFmt) s.numFmt = numFmt;
       return { v, t: (typeof v === 'number' ? 'n' : 's'), s };
     }
@@ -2313,9 +2315,9 @@ function exportarEstudoCompleto() {
     const BLANK   = ()       => cs(' ','FFFFFF',false,9,'FFFFFF','left');
     const TITLE   = (v,sz)   => cs(v,'1F4E79',true,sz||13,'FFFFFF','center');
 
-    const D = (v,bg,bold,sz,h,fmt) => cs(v,bg||'00000000',bold||false,sz||9,'000000',h||'left',fmt);
-    const DM = (v,bg) => cs(v,bg||'00000000',false,9,'000000','right',FMT_M);
-    const DI = (v,bg) => cs(v,bg||'00000000',false,9,'000000','center',FMT_I);
+    const D  = (v,bg,bold,sz,fg,h,fmt) => cs(v,bg||null,!!bold,sz||9,fg||'000000',h||'left',fmt);
+    const DM = (v,bg) => cs(v,bg||null,false,9,'000000','right',FMT_M);
+    const DI = (v,bg) => cs(v,bg||null,false,9,'000000','center',FMT_I);
     const TOT = (v,h,fmt) => cs(v,'D9D9D9',true,9,'000000',h||'left',fmt);
     const LIQV = (v) => cs(v,'FFF0E0',true,9,'833C00','right',FMT_M);
     const SAQV = (v,bg) => cs(v,bg||'EAF4FB',true,9,'000000','right',FMT_M);
@@ -2343,6 +2345,10 @@ function exportarEstudoCompleto() {
     function putCell(ws,r,c,cell) { ws[cellRef(r,c)] = cell; }
     function setRange(ws, maxR, maxC) {
       ws['!ref'] = XS.utils.encode_range({s:{r:0,c:0},e:{r:maxR-1,c:maxC-1}});
+    }
+    function setView(ws, ySplit=1) {
+      ws['!freeze'] = { xSplit:0, ySplit, topLeftCell: cellRef(ySplit+1,1), activePane:'bottomLeft', state:'frozen' };
+      ws['!autofilter'] = { ref: ws['!ref'] };
     }
 
     // ══════════════════════════════════════════════════════
@@ -2482,8 +2488,9 @@ function exportarEstudoCompleto() {
       });
 
       setCols(ws,[25,11,7,30,14,6,13,13,13,13,13,13,13,13,13,16]);
-      setRows(ws,[22,6,20,28,6,20,28,6,20,40,6,28,...clientes.map(()=>14),14]);
+      setRows(ws,[22,6,20,28,6,20,28,6,20,40,6,28,...clientes.map(()=>18),20]);
       setRange(ws,tRi,16);
+      setView(ws,12);
       return ws;
     }
 
@@ -2551,7 +2558,9 @@ function exportarEstudoCompleto() {
         putCell(ws,tRi,i+1,cs(v,'2E75B6',true,9,'FFFFFF',i<2?'left':'center',i>=2?FMT_I:null));
       });
       setCols(ws,[9,22,14,14,14,14]);
+      setRows(ws,[24,8,22,28,8,22,...allBanks.map(()=>18),20]);
       setRange(ws,tRi,6);
+      setView(ws,6);
       return ws;
     }
 
@@ -2581,7 +2590,10 @@ function exportarEstudoCompleto() {
       const tRi=2+rows.length;
       putCell(ws,tRi,1,TOT('Total Geral')); putCell(ws,tRi,2,TOT(totSD,'right',FMT_M));
       putCell(ws,tRi,3,TOT(totCnt,'center',FMT_I)); putCell(ws,tRi,4,TOT(totMed,'right',FMT_M));
-      setCols(ws,[22,18,14,14]); setRange(ws,tRi,4);
+      setCols(ws,[22,18,14,14]);
+      setRows(ws,[22,...rows.map(()=>18),20]);
+      setRange(ws,tRi,4);
+      setView(ws,1);
       return ws;
     }
 
@@ -2612,7 +2624,10 @@ function exportarEstudoCompleto() {
       putCell(ws,tRi,1,TOT('Total Geral')); putCell(ws,tRi,2,TOT(totVC,'right',FMT_M));
       putCell(ws,tRi,3,TOT(totTR,'right',FMT_M)); putCell(ws,tRi,4,TOT(totCnt,'center',FMT_I));
       putCell(ws,tRi,5,TOT(totMed,'right',FMT_M));
-      setCols(ws,[22,18,14,14,14]); setRange(ws,tRi,5);
+      setCols(ws,[22,18,14,14,14]);
+      setRows(ws,[22,...rows.map(()=>18),20]);
+      setRange(ws,tRi,5);
+      setView(ws,1);
       return ws;
     }
 
@@ -2645,7 +2660,9 @@ function exportarEstudoCompleto() {
         putCell(ws,ri,16,D(r.motivo||'',bg));
       });
       setCols(ws,[12,25,7,30,20,15,9,12,9,14,8,10,12,10,8,35]);
+      setRows(ws,[22,...allResults.map(()=>18)]);
       setRange(ws,2+allResults.length,16);
+      setView(ws,1);
       return ws;
     }
 
@@ -2687,7 +2704,9 @@ function exportarEstudoCompleto() {
       }
       const nc=temDatafast?4:3;
       setCols(ws,[13,13,25,18].slice(0,nc));
+      setRows(ws,[22,...Array.from({length:di},()=>18)]);
       setRange(ws,2+di,nc);
+      setView(ws,1);
       return ws;
     }
 
