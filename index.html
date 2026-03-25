@@ -2512,12 +2512,160 @@ function exportarEstudoCompleto() {
     return parts.join('\n');
   }
 
+  // === ABA RESUMO CARTÃO ===
+  function buildResumoCartao() {
+    if (!rawSheetData || rawSheetData.length < 2) return '';
+    try {
+      const rmcI = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+      const rccI = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+      const ri = rmcI>=0?rmcI:38; const rci = rccI>=0?rccI:45;
+      const BMAP = {'318':'BMG','623':'PAN','707':'DAYCOVAL','33':'SANTANDER','465':'QUERO+',
+        '389':'MERCANTIL DO BRASIL','934':'BANCO CETELEM','237':'BRADESCO','935':'FACTA',
+        '121':'AGIBANK','104':'CAIXA ECONÔMICA','41':'BANRISUL','243':'BANCO MASTER',
+        '903':'BANCO DO BRASIL','999':'DIVERSOS','643':'PINE','422':'SAFRA',
+        '908':'PORTOCRED','254':'PARANÁ BANCO','79':'ORIGINAL','329':'QI TECH',
+        '626':'C6','1':'BANCO DO BRASIL','29':'ITAU','341':'ITAU','81':'BRB',
+        '386':'NU FINANCEIRA','330':'PARATI','359':'ZEMA'};
+      const HL = new Set(['318','623','707']);
+      const rmcCnt={}, rccCnt={};
+      let semRMC=0, semRCC=0;
+      for (let r=1; r<rawSheetData.length; r++) {
+        const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2])) continue;
+        const rmc=String(row[ri]||'').trim(); const rcc=String(row[rci]||'').trim();
+        if (rmc&&rmc!=='null'&&rmc!=='undefined'&&rmc!=='0') rmcCnt[rmc]=(rmcCnt[rmc]||0)+1;
+        else semRMC++;
+        if (rcc&&rcc!=='null'&&rcc!=='undefined'&&rcc!=='0') rccCnt[rcc]=(rccCnt[rcc]||0)+1;
+        else semRCC++;
+      }
+      const allB = Array.from(new Set([...Object.keys(rmcCnt),...Object.keys(rccCnt)]))
+        .sort((a,b)=>((rmcCnt[b]||0)+(rccCnt[b]||0))-((rmcCnt[a]||0)+(rccCnt[a]||0)));
+      const totRMC=Object.values(rmcCnt).reduce((t,v)=>t+v,0);
+      const totRCC=Object.values(rccCnt).reduce((t,v)=>t+v,0);
+      const HRC=`<Cell ss:StyleID="RH"><Data ss:Type="String">`;
+      const HE=`</Data></Cell>`;
+      let out=`<Worksheet ss:Name="Resumo Cartão"><Table ss:DefaultRowHeight="18">
+<Column ss:Width="70"/><Column ss:Width="160"/><Column ss:Width="100"/><Column ss:Width="100"/><Column ss:Width="100"/><Column ss:Width="100"/>
+<Row ss:Height="36"><Cell ss:MergeAcross="5" ss:StyleID="TITLE"><Data ss:Type="String">RESUMO CARTÃO  —  RMC / RCC</Data></Cell></Row>
+<Row ss:Height="6"><Cell ss:StyleID="BLANK"><Data ss:Type="String"> </Data></Cell></Row>
+<Row ss:Height="24">
+  <Cell ss:MergeAcross="1" ss:StyleID="KH"><Data ss:Type="String">Total CPF com RMC</Data></Cell>
+  <Cell ss:MergeAcross="1" ss:StyleID="SAQH"><Data ss:Type="String">Total CPF com RCC</Data></Cell>
+  <Cell ss:StyleID="KH"><Data ss:Type="String">Total SEM RMC</Data></Cell>
+  <Cell ss:StyleID="LIQH"><Data ss:Type="String">Total SEM RCC</Data></Cell>
+</Row>
+<Row ss:Height="30">
+  <Cell ss:MergeAcross="1" ss:StyleID="KV"><Data ss:Type="Number">${totRMC}</Data></Cell>
+  <Cell ss:MergeAcross="1" ss:StyleID="SAQV"><Data ss:Type="Number">${totRCC}</Data></Cell>
+  <Cell ss:StyleID="KV"><Data ss:Type="Number">${semRMC}</Data></Cell>
+  <Cell ss:StyleID="LIQV"><Data ss:Type="Number">${semRCC}</Data></Cell>
+</Row>
+<Row ss:Height="6"><Cell ss:StyleID="BLANK"><Data ss:Type="String"> </Data></Cell></Row>
+<Row ss:Height="24">${HRC}Código${HE}${HRC}Nome do Banco${HE}${HRC}Total CPF RMC${HE}${HRC}Total CPF RCC${HE}${HRC}Total SEM RMC${HE}${HRC}Total SEM RCC${HE}</Row>\n`;
+      allB.forEach((code,i) => {
+        const hl=HL.has(code); const g=i%2?'g':'';
+        const ts=hl?(i%2?'RTg':'RT'):`RT${g}`; const ns='RT';
+        out+=`<Row><Cell ss:StyleID="${ts}"><Data ss:Type="String">${sv(code)}</Data></Cell><Cell ss:StyleID="${ts}"><Data ss:Type="String">${sv(BMAP[code]||('Banco '+code))}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${rmcCnt[code]||0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${rccCnt[code]||0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRMC:0}</Data></Cell><Cell ss:StyleID="${ns}"><Data ss:Type="Number">${i===0?semRCC:0}</Data></Cell></Row>\n`;
+      });
+      out+=`<Row><Cell ss:StyleID="RH"><Data ss:Type="String">TOTAL</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="String"></Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totRMC}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totRCC}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${semRMC}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${semRCC}</Data></Cell></Row>
+</Table></Worksheet>`;
+      return out;
+    } catch(e) { console.error('Resumo Cartão EC error:',e); return ''; }
+  }
+
+  // === ABA ANALÍTICO PMT BANCO DE ORIGEM ===
+  function buildAnaliticoPMTOrigem() {
+    // Todos os contratos porto (não-PMT) agrupados por banco de origem
+    const bancoMap={};
+    allResults.filter(r=>r.elegivel && r.destino!=='PMT Baixa').forEach(r=>{
+      const b=String(r.bancoOrigem||'Desconhecido');
+      if(!bancoMap[b]) bancoMap[b]={sd:0,cnt:0,sp:0};
+      bancoMap[b].sd+=fmtN(r.saldo);
+      bancoMap[b].cnt++;
+      bancoMap[b].sp+=fmtN(r.parcela);
+    });
+    const rows=Object.entries(bancoMap).map(([b,v])=>({b,sd:v.sd,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.sd-a.sd);
+    const totSD=rows.reduce((t,r)=>t+r.sd,0);
+    const totCnt=rows.reduce((t,r)=>t+r.cnt,0);
+    const totMed=totCnt?rows.reduce((t,r)=>t+r.med*r.cnt,0)/totCnt:0;
+    const H=`<Cell ss:StyleID="H"><Data ss:Type="String">`;
+    const HE=`</Data></Cell>`;
+    let out=`<Worksheet ss:Name="Analítico PMT Banco de Origem"><Table ss:DefaultRowHeight="16">
+<Column ss:Width="160"/><Column ss:Width="120"/><Column ss:Width="80"/><Column ss:Width="100"/>
+<Row ss:Height="26">${H}Banco Origem${HE}${H}Soma Saldo Devedor${HE}${H}Contagem Parcelas${HE}${H}Média Parcela${HE}</Row>\n`;
+    rows.forEach((r,i)=>{
+      const g=i%2?'g':'';
+      out+=`<Row><Cell ss:StyleID="T${g}"><Data ss:Type="String">${sv(r.b)}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.sd*100)/100}</Data></Cell><Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.cnt}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.med*100)/100}</Data></Cell></Row>\n`;
+    });
+    out+=`<Row><Cell ss:StyleID="RH"><Data ss:Type="String">Total Geral</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totSD*100)/100}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totCnt}</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totMed*100)/100}</Data></Cell></Row>
+</Table></Worksheet>`;
+    return out;
+  }
+
+  // === ABA ANALÍTICO BANCOS PMT BAIXA ===
+  function buildAnaliticoPMTBaixa() {
+    const pmtArr=allResults.filter(r=>r.elegivel && r.destino==='PMT Baixa');
+    const bancoMap={};
+    pmtArr.forEach(r=>{
+      const b=String(r.bancoOrigem||'Desconhecido');
+      if(!bancoMap[b]) bancoMap[b]={vc:0,tr:0,cnt:0,sp:0};
+      bancoMap[b].vc+=fmtN(r.valorContrato);
+      bancoMap[b].tr+=fmtN(r.troco);
+      bancoMap[b].cnt++;
+      bancoMap[b].sp+=fmtN(r.parcela);
+    });
+    const rows=Object.entries(bancoMap).map(([b,v])=>({b,vc:v.vc,tr:v.tr,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.tr-a.tr);
+    const totVC=rows.reduce((t,r)=>t+r.vc,0);
+    const totTR=rows.reduce((t,r)=>t+r.tr,0);
+    const totCnt=rows.reduce((t,r)=>t+r.cnt,0);
+    const totMed=totCnt?rows.reduce((t,r)=>t+r.med*r.cnt,0)/totCnt:0;
+    const HPMT=`<Cell ss:StyleID="HPMT"><Data ss:Type="String">`;
+    const HE=`</Data></Cell>`;
+    let out=`<Worksheet ss:Name="Analítico Bancos PMT Baixa"><Table ss:DefaultRowHeight="16">
+<Column ss:Width="160"/><Column ss:Width="120"/><Column ss:Width="100"/><Column ss:Width="80"/><Column ss:Width="100"/>
+<Row ss:Height="26">${HPMT}Banco Origem${HE}${HPMT}Soma Vlr Contrato${HE}${HPMT}Soma Troco${HE}${HPMT}Contagem Parcelas${HE}${HPMT}Média Parcela${HE}</Row>\n`;
+    rows.forEach((r,i)=>{
+      const g=i%2?'g':'';
+      out+=`<Row><Cell ss:StyleID="T${g}"><Data ss:Type="String">${sv(r.b)}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.vc*100)/100}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.tr*100)/100}</Data></Cell><Cell ss:StyleID="T${g}"><Data ss:Type="Number">${r.cnt}</Data></Cell><Cell ss:StyleID="M${g}"><Data ss:Type="Number">${Math.round(r.med*100)/100}</Data></Cell></Row>\n`;
+    });
+    out+=`<Row><Cell ss:StyleID="RH"><Data ss:Type="String">Total Geral</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totVC*100)/100}</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totTR*100)/100}</Data></Cell><Cell ss:StyleID="RH"><Data ss:Type="Number">${totCnt}</Data></Cell><Cell ss:StyleID="M"><Data ss:Type="Number">${Math.round(totMed*100)/100}</Data></Cell></Row>
+</Table></Worksheet>`;
+    return out;
+  }
+
+  // === ABA ELEGÍVEIS (todas as parcelas, Sim e Não) ===
+  function buildElegiveisEC() {
+    const bancoCor=(dest)=>{
+      const d=(dest||'').toLowerCase();
+      if(d.includes('finanto'))return'FFF2CC'; if(d.includes('brb'))return'DEEAF1';
+      if(d.includes('digio'))return'E2EFDA'; if(d.includes('nossa'))return'F4CCFF';
+      if(d.includes('pmt'))return'FCE4D6'; return null;
+    };
+    const fmtCoef=v=>{const n=parseFloat(v);return isNaN(n)?0:Math.round(n*100000)/100000;};
+    const H=`<Cell ss:StyleID="H"><Data ss:Type="String">`;
+    const HE=`</Data></Cell>`;
+    let out=`<Worksheet ss:Name="Elegíveis"><Table ss:DefaultRowHeight="15">
+<Column ss:Width="90"/><Column ss:Width="180"/><Column ss:Width="50"/><Column ss:Width="200"/>
+<Column ss:Width="140"/><Column ss:Width="110"/><Column ss:Width="60"/><Column ss:Width="80"/>
+<Column ss:Width="60"/><Column ss:Width="100"/><Column ss:Width="55"/><Column ss:Width="65"/>
+<Column ss:Width="80"/><Column ss:Width="70"/><Column ss:Width="50"/><Column ss:Width="200"/>
+<Row ss:Height="28">${H}CPF${HE}${H}Nome${HE}${H}Idade${HE}${H}Espécie${HE}${H}Banco Origem${HE}${H}Contrato${HE}${H}Parcela${HE}${H}Saldo Devedor${HE}${H}Prazo${HE}${H}Banco Prioritário${HE}${H}Taxa Aplicada${HE}${H}Coeficiente${HE}${H}Valor Contrato${HE}${H}Troco${HE}${H}Elegível${HE}${H}Motivo${HE}</Row>\n`;
+    allResults.forEach((r,idx)=>{
+      const cor=r.elegivel?(bancoCor(r.destino)||'none'):(idx%2===0?'gray':'none');
+      const T=cor==='none'?'T':cor==='gray'?'Tg':'T'+cor;
+      const Mo=cor==='none'?'M':cor==='gray'?'Mg':'M'+cor;
+      const Po=cor==='none'?'M':cor==='gray'?'Mg':'M'+cor;
+      const Co=cor==='none'?'M':cor==='gray'?'Mg':'M'+cor;
+      out+=`<Row><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.cpf)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.nome)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.idade)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.especie)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.bancoOrigem)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.contrato)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.parcela)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.saldo)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.prazo)}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.destino)}</Data></Cell><Cell ss:StyleID="${Po}"><Data ss:Type="Number">${fmtN(r.taxa)}</Data></Cell><Cell ss:StyleID="${Co}"><Data ss:Type="Number">${fmtCoef(r.coef)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.valorContrato)}</Data></Cell><Cell ss:StyleID="${Mo}"><Data ss:Type="Number">${fmtN(r.troco)}</Data></Cell><Cell ss:StyleID="${r.elegivel?'KH':'HPMT'}"><Data ss:Type="String">${r.elegivel?'Sim':'Não'}</Data></Cell><Cell ss:StyleID="${T}"><Data ss:Type="String">${sv(r.motivo)}</Data></Cell></Row>\n`;
+    });
+    out+=`</Table></Worksheet>`;
+    return out;
+  }
+
   // === ABAS DO FÊNIX EXCETO RMC/RCC BMG ===
   function buildAbasFenicExcetoBMG() {
     const rmcRcc = buildRmcRccXml();
     if (!rmcRcc) return '';
     const sheets = rmcRcc.sheets;
-    // Ordem: RMC BMG(4col), Resumo Cartão, outras abas, RCC BMG(4col), demais
     // sheets[0]=Base, [1]=RMC BMG, [2]=RMC PAN, [3]=RMC DAYCOVAL,
     // [4]=RCC BMG, [5]=RCC PAN, [6]=RCC DAYCOVAL, [7]=SEM RMC, [8]=SEM RCC, [9]=Resumo
     const abasExtras = `
@@ -2542,6 +2690,10 @@ ${sheets[8]}`;
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
 <Styles>${STYLES}</Styles>
 ${buildResumo()}
+${buildResumoCartao()}
+${buildAnaliticoPMTOrigem()}
+${buildAnaliticoPMTBaixa()}
+${buildElegiveisEC()}
 ${buildAbasFenicExcetoBMG()}
 </Workbook>`;
 
