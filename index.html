@@ -67,7 +67,7 @@ header {
 }
 .logo-sub { font-size: 10px; color: var(--silver-dim); letter-spacing: 1.5px; text-transform: uppercase; }
 .header-center {
-  flex:1; max-width:340px; margin:0 auto;
+  flex:1; max-width:260px; margin:0 auto;
 }
 .search-box {
   width:100%; background: var(--blue-mid);
@@ -82,26 +82,26 @@ header {
   content:'🔍'; position:absolute; left:10px; top:50%; transform:translateY(-50%);
   font-size:13px; z-index:1;
 }
-.header-right { display:flex; align-items:center; gap:12px; }
+.header-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
 .btn-export {
   background: linear-gradient(135deg, #00c853, #00e676);
-  color: #000; font-weight:700; font-size:13px;
-  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
-  display:flex; align-items:center; gap:6px;
-  transition: all .2s;
+  color: #000; font-weight:700; font-size:12px;
+  padding:7px 12px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:5px;
+  transition: all .2s; white-space:nowrap;
 }
 .btn-export:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,230,118,.3); }
 .btn-export:disabled { opacity:.4; cursor:not-allowed; transform:none; }
 .btn-nova {
   background: var(--blue-mid); border:1px solid var(--border);
-  color:var(--text); font-weight:600; font-size:13px;
-  padding:8px 16px; border-radius:8px; cursor:pointer;
-  transition: all .2s;
+  color:var(--text); font-weight:600; font-size:12px;
+  padding:7px 12px; border-radius:8px; cursor:pointer;
+  transition: all .2s; white-space:nowrap;
 }
 .btn-nova:hover { background: var(--blue-accent); }
 .file-indicator {
-  font-size:12px; color:var(--silver-dim);
-  max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-size:11px; color:var(--silver-dim);
+  max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 
 /* ── TABS ── */
@@ -438,33 +438,33 @@ td { padding:10px 14px; white-space:nowrap; }
 
 .btn-datafast {
   background: linear-gradient(135deg, #f5a623, #f7c26b);
-  color: #000; font-weight:700; font-size:13px;
-  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
-  display:flex; align-items:center; gap:6px; transition: all .2s;
+  color: #000; font-weight:700; font-size:12px;
+  padding:7px 12px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:5px; transition: all .2s; white-space:nowrap;
 }
 .btn-datafast:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,166,35,.35); }
 .btn-datafast:disabled { opacity:.4; cursor:not-allowed; transform:none; }
 .btn-export-bmg {
   background: linear-gradient(135deg, #1565c0, #1976d2);
-  color: #fff; font-weight:700; font-size:13px;
-  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
-  display:flex; align-items:center; gap:6px; transition: all .2s;
+  color: #fff; font-weight:700; font-size:12px;
+  padding:7px 12px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:5px; transition: all .2s; white-space:nowrap;
 }
 .btn-export-bmg:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(21,101,192,.35); }
 .btn-export-bmg:disabled { opacity:.4; cursor:not-allowed; transform:none; }
 .btn-estudo {
   background: linear-gradient(135deg, #6a0dad, #8e24aa);
-  color: #fff; font-weight:700; font-size:13px;
-  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
-  display:flex; align-items:center; gap:6px; transition: all .2s;
+  color: #fff; font-weight:700; font-size:12px;
+  padding:7px 12px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:5px; transition: all .2s; white-space:nowrap;
 }
 .btn-estudo:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(106,13,173,.35); }
 .btn-estudo:disabled { opacity:.4; cursor:not-allowed; transform:none; }
 .btn-pan {
   background: linear-gradient(135deg, #0277bd, #0288d1);
-  color: #fff; font-weight:700; font-size:13px;
-  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
-  display:flex; align-items:center; gap:6px; transition: all .2s;
+  color: #fff; font-weight:700; font-size:12px;
+  padding:7px 12px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:5px; transition: all .2s; white-space:nowrap;
 }
 .btn-pan:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(2,136,209,.4); }
 .btn-pan.loaded { background: linear-gradient(135deg, #1b5e20, #2e7d32); }
@@ -511,8 +511,8 @@ td { padding:10px 14px; white-space:nowrap; }
     <button class="btn-datafast" id="btn-datafast" disabled onclick="consultarDatafastBMG()">
       ⚡ Saque BMG
     </button>
-    <button class="btn-export-bmg" id="btn-export-bmg" disabled onclick="exportarSaqueBMG()">
-      ⬇ Saque BMG
+    <button class="btn-export-bmg" id="btn-export-bmg" disabled onclick="exportarSaqueBMG()" title="Exportar resultado Saque BMG" style="padding:7px 8px;font-size:11px;">
+      ⬇
     </button>
     <button class="btn-pan" id="btn-pan" onclick="document.getElementById('pan-input').click()" title="Importar base RMC/RCC PAN (CSV)">
       📥 Base PAN
@@ -522,7 +522,7 @@ td { padding:10px 14px; white-space:nowrap; }
       ⭐ Estudo Completo
     </button>
     <button class="btn-export" id="btn-export" disabled onclick="exportarElegiveis()">
-      ⬇ Exportar Fênix
+      ⬇ Fênix
     </button>
     <button class="btn-nova" onclick="novaBase()">Nova Base</button>
   </div>
