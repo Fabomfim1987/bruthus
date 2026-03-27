@@ -322,7 +322,7 @@ td { padding:10px 14px; white-space:nowrap; }
   border-top-color:var(--blue-glow); border-radius:50%;
   animation:spin .8s linear infinite;
 }
- .processing-text { font-size:18px; font-weight:700; color:var(--silver); }
+.processing-text { font-size:18px; font-weight:700; color:var(--silver); }
 .processing-sub { font-size:13px; color:var(--text-dim); }
 
 /* cpf modal */
@@ -419,13 +419,8 @@ td { padding:10px 14px; white-space:nowrap; }
 
 
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 @keyframes fadeOut {
   to { opacity: 0; pointer-events: none; }
-}
 
 
 
@@ -434,7 +429,7 @@ td { padding:10px 14px; white-space:nowrap; }
 
 
 
-}
+
 
 
 
@@ -490,6 +485,10 @@ td { padding:10px 14px; white-space:nowrap; }
 .df-stat-val { font-size:22px; font-weight:700; color:var(--green); }
 .df-stat-val.red { color:var(--red); }
 .df-stat-lbl { font-size:11px; color:var(--text-dim); margin-top:2px; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+}
 </style>
 </head>
 <body>
@@ -2579,3 +2578,4 @@ function exportarEstudoCompleto() {
         'B85C00','1F4E79','1F4E79','2E75B6','2E75B6','2E75B6','833C00'];
       const hdrFills18=['1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79',
         'B85C00','1F4E79','1F4E79','2E75B6','2E75B6','2E75B6','0277BD','0277BD','833C00'];
+      
