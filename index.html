@@ -2392,9 +2392,9 @@ function exportarEstudoCompleto() {
     const BLANK   = ()       => cs(' ','FFFFFF',false,9,'FFFFFF','left');
     const TITLE   = (v,sz)   => cs(v,'1F4E79',true,sz||13,'FFFFFF','center');
 
-    const D = (v,bg,bold,sz,h,fmt) => cs(v,bg||'00000000',bold||false,sz||9,'000000',h||'left',fmt);
-    const DM = (v,bg) => cs(v,bg||'00000000',false,9,'000000','right',FMT_M);
-    const DI = (v,bg) => cs(v,bg||'00000000',false,9,'000000','center',FMT_I);
+    const D = (v,bg,bold,sz,h,fmt) => cs(v,bg||'FFFFFF',bold||false,sz||9,'000000',h||'left',fmt);
+    const DM = (v,bg) => cs(v,bg||'FFFFFF',false,9,'000000','right',FMT_M);
+    const DI = (v,bg) => cs(v,bg||'FFFFFF',false,9,'000000','center',FMT_I);
     const TOT = (v,h,fmt) => cs(v,'D9D9D9',true,9,'000000',h||'left',fmt);
     const LIQV = (v) => cs(v,'FFF0E0',true,9,'833C00','right',FMT_M);
     const SAQV = (v,bg) => cs(v,bg||'EAF4FB',true,9,'000000','right',FMT_M);
@@ -2500,7 +2500,7 @@ function exportarEstudoCompleto() {
 
       // Row 1 – título merged A1:P1
       putCell(ws,1,1,TITLE('RESUMO PORTABILIDADE — POR CLIENTE  |  Ordenado por Líquido Total',13));
-      addMerge(ws,1,1,1,16);
+      // merge will be set dynamically after nCols is known
       // Row 2 – blank
       for(let c=1;c<=16;c++) putCell(ws,2,c,BLANK());
       // Row 3 – KPI labels (cada grupo de 4 colunas merged)
@@ -2510,15 +2510,16 @@ function exportarEstudoCompleto() {
       putCell(ws,3,13,H_ORG('Vlr Contrato PMT Baixa'));     addMerge(ws,3,13,3,16);
       for(let c=2;c<=16;c++) if([2,3,4,6,7,8,10,11,12,14,15,16].includes(c)) putCell(ws,3,c,BLANK());
       // Row 4 – KPI values
-      putCell(ws,4,1,cs(totCli,'00000000',true,13,'000000','center',FMT_I));   addMerge(ws,4,1,4,4);
-      putCell(ws,4,5,cs(totContr,'00000000',true,13,'000000','center',FMT_I)); addMerge(ws,4,5,4,8);
-      putCell(ws,4,9,cs(totPorto,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,4,9,4,12);
-      putCell(ws,4,13,cs(totPMT,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,4,13,4,16);
+      putCell(ws,4,1,cs(totCli,'FFFFFF',true,13,'000000','center',FMT_I));   addMerge(ws,4,1,4,4);
+      putCell(ws,4,5,cs(totContr,'FFFFFF',true,13,'000000','center',FMT_I)); addMerge(ws,4,5,4,8);
+      putCell(ws,4,9,cs(totPorto,'FFFFFF',true,13,'000000','center',FMT_M)); addMerge(ws,4,9,4,12);
+      putCell(ws,4,13,cs(totPMT,'FFFFFF',true,13,'000000','center',FMT_M)); addMerge(ws,4,13,4,16);
       for(let c=2;c<=16;c++) if([2,3,4,6,7,8,10,11,12,14,15,16].includes(c)) putCell(ws,4,c,BLANK());
       // Row 5 – blank
       for(let c=1;c<=16;c++) putCell(ws,5,c,BLANK());
       // Row 6 – Saque labels (BMG + Daycoval + PAN se disponível)
       const nCols = temPAN ? 20 : 16;
+      addMerge(ws,1,1,1,nCols); // title row merge - dynamic
       putCell(ws,6,1,H_BLUE2(`💳 Saque RMC BMG  (${ctRMCBMG} clientes)`));  addMerge(ws,6,1,6,4);
       putCell(ws,6,5,H_BLUE2(`💳 Saque RCC BMG  (${ctRCCBMG} clientes)`));  addMerge(ws,6,5,6,8);
       putCell(ws,6,9,H_BLUE2(`💳 Saque Daycoval  (${ctDAY} clientes)`)); addMerge(ws,6,9,6,12);
@@ -2528,13 +2529,13 @@ function exportarEstudoCompleto() {
         putCell(ws,6,17,H_BLUE2(`💳 Saque RCC PAN  (${ctRCCPAN} clientes)`)); addMerge(ws,6,17,6,20);
       }
       // Row 7 – Saque values
-      putCell(ws,7,1,cs(totSaqRMCBMG,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,1,7,2);
-      putCell(ws,7,5,cs(totSaqRCCBMG,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,5,7,6);
-      putCell(ws,7,9,cs(totSaqDAY,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,9,7,10);
+      putCell(ws,7,1,cs(totSaqRMCBMG,'FFFFFF',true,13,'000000','center',FMT_M)); addMerge(ws,7,1,7,2);
+      putCell(ws,7,5,cs(totSaqRCCBMG,'FFFFFF',true,13,'000000','center',FMT_M)); addMerge(ws,7,5,7,6);
+      putCell(ws,7,9,cs(totSaqDAY,'FFFFFF',true,13,'000000','center',FMT_M)); addMerge(ws,7,9,7,10);
       for(let c=2;c<=nCols;c++) putCell(ws,7,c,BLANK());
       if(temPAN){
-        putCell(ws,7,13,cs(totSaqRMCPAN,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,13,7,14);
-        putCell(ws,7,17,cs(totSaqRCCPAN,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,17,7,18);
+        putCell(ws,7,13,cs(totSaqRMCPAN,'FFFFFF',true,13,'000000','center',FMT_M)); addMerge(ws,7,13,7,14);
+        putCell(ws,7,17,cs(totSaqRCCPAN,'FFFFFF',true,13,'000000','center',FMT_M)); addMerge(ws,7,17,7,18);
       }
       // Row 8 – blank
       for(let c=1;c<=16;c++) putCell(ws,8,c,BLANK());
@@ -2573,13 +2574,12 @@ function exportarEstudoCompleto() {
       finalHdrs.forEach((h,i)=>{
         putCell(ws,12,i+1,cs(h,finalFills[i],true,9,'FFFFFF','center',null,true));
       });
-      // Row 1 title merge — atualiza para nCols
-      addMerge(ws,1,1,1,nCols);
+
 
       // Data rows (from row 13)
       clientes.forEach((c,di)=>{
         const ri=13+di;
-        const bg=bancoRowBg(c.melhorBanco)||(di%2?'F5F5F5':'00000000');
+        const bg=bancoRowBg(c.melhorBanco)||(di%2?'F5F5F5':'FFFFFF');
         const saqBg=bancoRowBg(c.melhorBanco)?bg:'EAF4FB';
         putCell(ws,ri,1,D(c.nome,bg)); putCell(ws,ri,2,D(c.cpf,bg));
         putCell(ws,ri,3,D(c.idade,bg)); putCell(ws,ri,4,D(c.especie,bg));
@@ -2656,12 +2656,12 @@ function exportarEstudoCompleto() {
       putCell(ws,3,5,H_GREEN('Total SEM RMC'));
       putCell(ws,3,6,H_ORG('Total SEM RCC'));
       // Row 4 KPI values
-      putCell(ws,4,1,cs(totRMC,'00000000',true,14,'000000','center',FMT_I)); addMerge(ws,4,1,4,2);
+      putCell(ws,4,1,cs(totRMC,'FFFFFF',true,14,'000000','center',FMT_I)); addMerge(ws,4,1,4,2);
       putCell(ws,4,2,BLANK());
-      putCell(ws,4,3,cs(totRCC,'00000000',true,14,'000000','center',FMT_I)); addMerge(ws,4,3,4,4);
+      putCell(ws,4,3,cs(totRCC,'FFFFFF',true,14,'000000','center',FMT_I)); addMerge(ws,4,3,4,4);
       putCell(ws,4,4,BLANK());
-      putCell(ws,4,5,cs(semRMC,'00000000',true,14,'000000','center',FMT_I));
-      putCell(ws,4,6,cs(semRCC,'00000000',true,14,'000000','center',FMT_I));
+      putCell(ws,4,5,cs(semRMC,'FFFFFF',true,14,'000000','center',FMT_I));
+      putCell(ws,4,6,cs(semRCC,'FFFFFF',true,14,'000000','center',FMT_I));
       putCell(ws,5,1,BLANK());
       // Row 6 headers
       const temPANrc=Object.keys(panSaqueData).length>0;
@@ -2689,8 +2689,8 @@ function exportarEstudoCompleto() {
       }
       allBanks.forEach((code,di)=>{
         const rri=7+di; const isHL=HL.has(code);
-        const bgAB=isHL?(di%2?'FFF9C4':'FFFDE7'):(di%2?'F5F5F5':'00000000');
-        const bgN=isHL?'FFFDE7':'00000000';
+        const bgAB=isHL?(di%2?'FFF9C4':'FFFDE7'):(di%2?'F5F5F5':'FFFFFF');
+        const bgN=isHL?'FFFDE7':'FFFFFF';
         putCell(ws,rri,1,D(code,bgAB,false,8));
         putCell(ws,rri,2,D(BMAP[code]||('Banco '+code),bgAB,false,8));
         putCell(ws,rri,3,cs(rmcCnt[code]||0,bgN,false,8,'000000','center',FMT_I));
@@ -2737,7 +2737,7 @@ function exportarEstudoCompleto() {
       const rows=Object.entries(bancoMap).map(([b,v])=>({b,sd:v.sd,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.sd-a.sd);
       ['Banco Origem','Soma Saldo Devedor','Contagem Parcelas','Média Parcela'].forEach((h,i)=>putCell(ws,1,i+1,H_DARK(h)));
       rows.forEach((r,di)=>{
-        const ri=2+di; const bg=di%2?'F5F5F5':'00000000';
+        const ri=2+di; const bg=di%2?'F5F5F5':'FFFFFF';
         putCell(ws,ri,1,D(r.b,bg)); putCell(ws,ri,2,DM(r.sd,bg));
         putCell(ws,ri,3,D(r.cnt,bg,false,9,'000000','left'));
         putCell(ws,ri,4,DM(r.med,bg));
@@ -2768,7 +2768,7 @@ function exportarEstudoCompleto() {
       const rows=Object.entries(bancoMap).map(([b,v])=>({b,vc:v.vc,tr:v.tr,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0})).sort((a,b2)=>b2.tr-a.tr);
       ['Banco Origem','Soma Vlr Contrato','Soma Troco','Contagem Parcelas','Média Parcela'].forEach((h,i)=>putCell(ws,1,i+1,H_ORG(h)));
       rows.forEach((r,di)=>{
-        const ri=2+di; const bg=di%2?'F5F5F5':'00000000';
+        const ri=2+di; const bg=di%2?'F5F5F5':'FFFFFF';
         putCell(ws,ri,1,D(r.b,bg)); putCell(ws,ri,2,DM(r.vc,bg)); putCell(ws,ri,3,DM(r.tr,bg));
         putCell(ws,ri,4,D(r.cnt,bg,false,9,'000000','left')); putCell(ws,ri,5,DM(r.med,bg));
       });
@@ -2797,7 +2797,7 @@ function exportarEstudoCompleto() {
       allResults.forEach((r,di)=>{
         const ri=2+di;
         const elegivel=r.elegivel;
-        const bg=elegivel?(bancoElegBg(r.destino)||(di%2?'F5F5F5':'00000000')):(di%2?'F5F5F5':'00000000');
+        const bg=elegivel?(bancoElegBg(r.destino)||(di%2?'F5F5F5':'FFFFFF')):(di%2?'F5F5F5':'FFFFFF');
         putCell(ws,ri,1,D(r.cpf,bg));      putCell(ws,ri,2,D(r.nome,bg));
         putCell(ws,ri,3,D(r.idade,bg));    putCell(ws,ri,4,D(r.especie,bg));
         putCell(ws,ri,5,D(r.bancoOrigem,bg)); putCell(ws,ri,6,D(String(r.contrato||''),bg));
@@ -2844,7 +2844,7 @@ function exportarEstudoCompleto() {
         else if(tipoCol==='RMC')include=(rmc===codigoBanco);
         else if(tipoCol==='RCC')include=(rcc===codigoBanco);
         if(!include)continue;
-        const ri=2+di; const bg=di%2?'F5F5F5':'00000000';
+        const ri=2+di; const bg=di%2?'F5F5F5':'FFFFFF';
         const cpf=cpfNorm(row[0]);
         putCell(ws,ri,1,D(cpf,bg,false,8));
         putCell(ws,ri,2,D(String(row[bI]||''),bg,false,8));
