@@ -460,6 +460,15 @@ td { padding:10px 14px; white-space:nowrap; }
 }
 .btn-estudo:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(106,13,173,.35); }
 .btn-estudo:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.btn-pan {
+  background: linear-gradient(135deg, #0277bd, #0288d1);
+  color: #fff; font-weight:700; font-size:13px;
+  padding:8px 18px; border-radius:8px; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:6px; transition: all .2s;
+}
+.btn-pan:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(2,136,209,.4); }
+.btn-pan.loaded { background: linear-gradient(135deg, #1b5e20, #2e7d32); }
+.btn-pan.loaded:hover { box-shadow:0 4px 16px rgba(46,125,50,.4); }
 .df-overlay {
   position:fixed; inset:0; background:rgba(10,22,40,.82);
   z-index:300; display:none; align-items:center; justify-content:center;
@@ -505,6 +514,10 @@ td { padding:10px 14px; white-space:nowrap; }
     <button class="btn-export-bmg" id="btn-export-bmg" disabled onclick="exportarSaqueBMG()">
       ⬇ Saque BMG
     </button>
+    <button class="btn-pan" id="btn-pan" onclick="document.getElementById('pan-input').click()" title="Importar base RMC/RCC PAN (CSV)">
+      📥 Base PAN
+    </button>
+    <input type="file" id="pan-input" accept=".csv" style="display:none" onchange="importarBasePAN(this.files[0])"/>
     <button class="btn-estudo" id="btn-estudo" disabled onclick="exportarEstudoCompleto()">
       ⭐ Estudo Completo
     </button>
@@ -1980,6 +1993,66 @@ function renderHistorico() {
 // UTILS
 // ═══════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════
+// BASE PAN — Importação CSV saque RMC/RCC
+// ═══════════════════════════════════════════════════════════
+function importarBasePAN(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/);
+      if (!lines.length) { showToast('CSV vazio','error'); return; }
+
+      // Detecta separador
+      const sep = lines[0].includes(';') ? ';' : ',';
+      const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,''));
+
+      // Localiza colunas por nome (tolerante a variações)
+      const iCPF = headers.findIndex(h => h.toUpperCase() === 'CPF');
+      const iRMC = headers.findIndex(h => h.toUpperCase().includes('SAQUE_MAXIMO_RMC') || h.toUpperCase().includes('VALOR_SAQUE_MAXIMO_RMC'));
+      const iRCC = headers.findIndex(h => h.toUpperCase().includes('SAQUE_MAXIMO_RCC') || h.toUpperCase().includes('VALOR_SAQUE_MAXIMO_RCC'));
+
+      if (iCPF < 0) { showToast('Coluna CPF não encontrada no CSV','error'); return; }
+
+      panSaqueData = {};
+      let ctRMC = 0, ctRCC = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const cols = line.split(sep);
+        const cpf = String(parseInt(parseFloat(String(cols[iCPF]||'').replace(/[^0-9]/g,'')))).padStart(11,'0');
+        if (cpf === 'NaN' || cpf.length < 11) continue;
+
+        const parseVal = v => {
+          if (!v) return null;
+          const s = String(v).trim().replace(/"/g,'').replace(',','.');
+          const n = parseFloat(s);
+          return (!isNaN(n) && n > 0) ? n : null;
+        };
+
+        const rmc = iRMC >= 0 ? parseVal(cols[iRMC]) : null;
+        const rcc = iRCC >= 0 ? parseVal(cols[iRCC]) : null;
+        panSaqueData[cpf] = { rmc, rcc };
+        if (rmc) ctRMC++;
+        if (rcc) ctRCC++;
+      }
+
+      const total = Object.keys(panSaqueData).length;
+      const btn = document.getElementById('btn-pan');
+      btn.classList.add('loaded');
+      btn.textContent = `✅ PAN (${total})`;
+      showToast(`Base PAN: ${total} CPFs | ${ctRMC} com limite RMC | ${ctRCC} com limite RCC`, 'success');
+    } catch(err) {
+      showToast('Erro ao ler CSV PAN: ' + err.message, 'error');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 function novaBase() {
   allResults=[];
   document.getElementById('screen-main').style.display='none';
@@ -1990,6 +2063,11 @@ function novaBase() {
   document.getElementById('btn-export-bmg').disabled=true;
   document.getElementById('btn-estudo').disabled=true;
   if(typeof datafastResultsBMG!=='undefined')datafastResultsBMG={};
+  panSaqueData={};
+  const btnPan=document.getElementById('btn-pan');
+  if(btnPan){btnPan.classList.remove('loaded');btnPan.textContent='📥 Base PAN';}
+  const panInput=document.getElementById('pan-input');
+  if(panInput)panInput.value='';
   document.getElementById('file-indicator').textContent='';
   document.getElementById('file-input').value='';
 }
@@ -2024,6 +2102,7 @@ function destinoClass(d) {
 // DATAFAST — SAQUE BMG (RMC/RCC)
 // ═══════════════════════════════════════════════════════════
 let datafastResultsBMG = {};
+let panSaqueData = {}; // { cpf: { rmc: float|null, rcc: float|null } }
 
 function cpfFmt(v) {
   try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); }
@@ -2295,12 +2374,10 @@ function exportarEstudoCompleto() {
 
     function cs(v, fillRgb, bold, sz, fgColor, halign, numFmt, wrap) {
       const s = {
-        font:  font(!!bold, sz||9, fgColor||'000000'),
-        alignment: aln(halign||'left','center', !!wrap)
+        fill:  fill(fillRgb),
+        font:  font(bold, sz, fgColor||'000000'),
+        alignment: aln(halign||'left','center', wrap||false)
       };
-      if (fillRgb && fillRgb !== '00000000' && fillRgb !== 'transparent') {
-        s.fill = fill(fillRgb);
-      }
       if (numFmt) s.numFmt = numFmt;
       return { v, t: (typeof v === 'number' ? 'n' : 's'), s };
     }
@@ -2315,9 +2392,9 @@ function exportarEstudoCompleto() {
     const BLANK   = ()       => cs(' ','FFFFFF',false,9,'FFFFFF','left');
     const TITLE   = (v,sz)   => cs(v,'1F4E79',true,sz||13,'FFFFFF','center');
 
-    const D  = (v,bg,bold,sz,fg,h,fmt) => cs(v,bg||null,!!bold,sz||9,fg||'000000',h||'left',fmt);
-    const DM = (v,bg) => cs(v,bg||null,false,9,'000000','right',FMT_M);
-    const DI = (v,bg) => cs(v,bg||null,false,9,'000000','center',FMT_I);
+    const D = (v,bg,bold,sz,h,fmt) => cs(v,bg||'00000000',bold||false,sz||9,'000000',h||'left',fmt);
+    const DM = (v,bg) => cs(v,bg||'00000000',false,9,'000000','right',FMT_M);
+    const DI = (v,bg) => cs(v,bg||'00000000',false,9,'000000','center',FMT_I);
     const TOT = (v,h,fmt) => cs(v,'D9D9D9',true,9,'000000',h||'left',fmt);
     const LIQV = (v) => cs(v,'FFF0E0',true,9,'833C00','right',FMT_M);
     const SAQV = (v,bg) => cs(v,bg||'EAF4FB',true,9,'000000','right',FMT_M);
@@ -2346,10 +2423,6 @@ function exportarEstudoCompleto() {
     function setRange(ws, maxR, maxC) {
       ws['!ref'] = XS.utils.encode_range({s:{r:0,c:0},e:{r:maxR-1,c:maxC-1}});
     }
-    function setView(ws, ySplit=1) {
-      ws['!freeze'] = { xSplit:0, ySplit, topLeftCell: cellRef(ySplit+1,1), activePane:'bottomLeft', state:'frozen' };
-      ws['!autofilter'] = { ref: ws['!ref'] };
-    }
 
     // ══════════════════════════════════════════════════════
     // 1. RESUMO PORTABILIDADE
@@ -2363,7 +2436,8 @@ function exportarEstudoCompleto() {
         const cpf = cpfNorm(r.cpf);
         if (!clienteMap[cpf]) clienteMap[cpf] = {
           nome:r.nome,cpf,idade:r.idade,especie:r.especie,melhorBanco:'',qtdContr:0,
-          vlrPorto:0,trocoPorto:0,vlrPMT:0,trocoPMT:0,saqRMCBMG:0,saqRCCBMG:0,saqDAY:0
+          vlrPorto:0,trocoPorto:0,vlrPMT:0,trocoPMT:0,saqRMCBMG:0,saqRCCBMG:0,saqDAY:0,
+          saqRMCPAN:0,saqRCCPAN:0
         };
         const c=clienteMap[cpf]; c.qtdContr++;
         if(r.elegivel){
@@ -2387,23 +2461,42 @@ function exportarEstudoCompleto() {
           if(rmc==='707'||rcc==='707')clienteMap[cpf].saqDAY+=lim;
         }
       }
+      // Injeta saques PAN (base CSV externa)
+      if(Object.keys(panSaqueData).length>0){
+        const ri2=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+        const ci2=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+        const ri=ri2>=0?ri2:38,ci=ci2>=0?ci2:45;
+        for(let r=1;r<rawSheetData.length;r++){
+          const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
+          const cpf=cpfNorm(row[0]); const pan=panSaqueData[cpf];
+          if(!pan||!clienteMap[cpf])continue;
+          const rmc=String(row[ri]||'').trim(),rcc=String(row[ci]||'').trim();
+          if(rmc==='623'&&pan.rmc)clienteMap[cpf].saqRMCPAN+=pan.rmc;
+          if(rcc==='623'&&pan.rcc)clienteMap[cpf].saqRCCPAN+=pan.rcc;
+        }
+      }
 
       const clientes=Object.values(clienteMap).map(c=>{
         c.vlrTotal=c.vlrPorto+c.vlrPMT; c.trocoTotal=c.trocoPorto+c.trocoPMT;
-        c.liquido=c.vlrTotal+c.saqRMCBMG+c.saqRCCBMG+c.saqDAY; return c;
+        c.liquido=c.vlrTotal+c.saqRMCBMG+c.saqRCCBMG+c.saqDAY+c.saqRMCPAN+c.saqRCCPAN; return c;
       }).sort((a,b)=>b.liquido-a.liquido);
 
       const totCli=clientes.length;
       const totContr=clientes.reduce((s,c)=>s+c.qtdContr,0);
       const totPorto=clientes.reduce((s,c)=>s+c.vlrPorto,0);
       const totPMT=clientes.reduce((s,c)=>s+c.vlrPMT,0);
-      const totSaqRMC=clientes.reduce((s,c)=>s+c.saqRMCBMG,0);
-      const totSaqRCC=clientes.reduce((s,c)=>s+c.saqRCCBMG,0);
+      const totSaqRMCBMG=clientes.reduce((s,c)=>s+c.saqRMCBMG,0);
+      const totSaqRCCBMG=clientes.reduce((s,c)=>s+c.saqRCCBMG,0);
       const totSaqDAY=clientes.reduce((s,c)=>s+c.saqDAY,0);
+      const totSaqRMCPAN=clientes.reduce((s,c)=>s+c.saqRMCPAN,0);
+      const totSaqRCCPAN=clientes.reduce((s,c)=>s+c.saqRCCPAN,0);
       const totLiq=clientes.reduce((s,c)=>s+c.liquido,0);
-      const ctRMC=clientes.filter(c=>c.saqRMCBMG>0).length;
-      const ctRCC=clientes.filter(c=>c.saqRCCBMG>0).length;
+      const ctRMCBMG=clientes.filter(c=>c.saqRMCBMG>0).length;
+      const ctRCCBMG=clientes.filter(c=>c.saqRCCBMG>0).length;
       const ctDAY=clientes.filter(c=>c.saqDAY>0).length;
+      const ctRMCPAN=clientes.filter(c=>c.saqRMCPAN>0).length;
+      const ctRCCPAN=clientes.filter(c=>c.saqRCCPAN>0).length;
+      const temPAN=totSaqRMCPAN>0||totSaqRCCPAN>0;
 
       // Row 1 – título merged A1:P1
       putCell(ws,1,1,TITLE('RESUMO PORTABILIDADE — POR CLIENTE  |  Ordenado por Líquido Total',13));
@@ -2424,38 +2517,64 @@ function exportarEstudoCompleto() {
       for(let c=2;c<=16;c++) if([2,3,4,6,7,8,10,11,12,14,15,16].includes(c)) putCell(ws,4,c,BLANK());
       // Row 5 – blank
       for(let c=1;c<=16;c++) putCell(ws,5,c,BLANK());
-      // Row 6 – Saque labels
-      putCell(ws,6,1,H_BLUE2(`💳 Saque RMC BMG  (${ctRMC} clientes)`));  addMerge(ws,6,1,6,4);
-      putCell(ws,6,5,H_BLUE2(`💳 Saque RCC BMG  (${ctRCC} clientes)`));  addMerge(ws,6,5,6,8);
+      // Row 6 – Saque labels (BMG + Daycoval + PAN se disponível)
+      const nCols = temPAN ? 20 : 16;
+      putCell(ws,6,1,H_BLUE2(`💳 Saque RMC BMG  (${ctRMCBMG} clientes)`));  addMerge(ws,6,1,6,4);
+      putCell(ws,6,5,H_BLUE2(`💳 Saque RCC BMG  (${ctRCCBMG} clientes)`));  addMerge(ws,6,5,6,8);
       putCell(ws,6,9,H_BLUE2(`💳 Saque Daycoval  (${ctDAY} clientes)`)); addMerge(ws,6,9,6,12);
-      for(let c=2;c<=16;c++) if([2,3,4,6,7,8,10,11,12,13,14,15,16].includes(c)) putCell(ws,6,c,BLANK());
+      for(let c=2;c<=nCols;c++) putCell(ws,6,c,BLANK());
+      if(temPAN){
+        putCell(ws,6,13,H_BLUE2(`💳 Saque RMC PAN  (${ctRMCPAN} clientes)`)); addMerge(ws,6,13,6,16);
+        putCell(ws,6,17,H_BLUE2(`💳 Saque RCC PAN  (${ctRCCPAN} clientes)`)); addMerge(ws,6,17,6,20);
+      }
       // Row 7 – Saque values
-      putCell(ws,7,1,cs(totSaqRMC,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,1,7,2);
-      putCell(ws,7,5,cs(totSaqRCC,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,5,7,6);
+      putCell(ws,7,1,cs(totSaqRMCBMG,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,1,7,2);
+      putCell(ws,7,5,cs(totSaqRCCBMG,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,5,7,6);
       putCell(ws,7,9,cs(totSaqDAY,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,9,7,10);
-      for(let c=2;c<=16;c++) putCell(ws,7,c,BLANK());
+      for(let c=2;c<=nCols;c++) putCell(ws,7,c,BLANK());
+      if(temPAN){
+        putCell(ws,7,13,cs(totSaqRMCPAN,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,13,7,14);
+        putCell(ws,7,17,cs(totSaqRCCPAN,'00000000',true,13,'000000','center',FMT_M)); addMerge(ws,7,17,7,18);
+      }
       // Row 8 – blank
       for(let c=1;c<=16;c++) putCell(ws,8,c,BLANK());
       // Row 9 – Líquido Total header
       putCell(ws,9,1,H_BROWN('⭐  LÍQUIDO TOTAL  (Portabilidade + PMT Baixa + Saque Cartão)',11));
-      addMerge(ws,9,1,9,16);
-      for(let c=2;c<=16;c++) putCell(ws,9,c,BLANK());
+      addMerge(ws,9,1,9,nCols);
+      for(let c=2;c<=nCols;c++) putCell(ws,9,c,BLANK());
       // Row 10 – Líquido Total value
       putCell(ws,10,1,cs(totLiq,'FFF0E0',true,20,'833C00','center',FMT_M));
-      addMerge(ws,10,1,10,16);
-      for(let c=2;c<=16;c++) putCell(ws,10,c,BLANK());
+      addMerge(ws,10,1,10,nCols);
+      for(let c=2;c<=nCols;c++) putCell(ws,10,c,BLANK());
       // Row 11 – blank
-      for(let c=1;c<=16;c++) putCell(ws,11,c,BLANK());
+      for(let c=1;c<=nCols;c++) putCell(ws,11,c,BLANK());
       // Row 12 – column headers
       const hdrs=['Nome','CPF','Idade','Espécie','Melhor Banco','Qtd Contr.',
         'Vlr Cont. Portabilidade','Troco Portabilidade','Vlr Cont. PMT Baixa','Troco PMT Baixa',
         'Vlr Cont. TOTAL ★','Troco TOTAL','💳 Saque RMC BMG','💳 Saque RCC BMG','💳 Saque Daycoval',
+        ...(temPAN?['💳 Saque RMC PAN','💳 Saque RCC PAN']:['💰 Líquido Total']),
+        ...(temPAN?['💰 Líquido Total (Port.+PMT+Saque)']:[])
+      ];
+      // Corrige: sem PAN, última coluna já é Líquido Total (16 cols). Com PAN, 18 cols.
+      const hdrs16=['Nome','CPF','Idade','Espécie','Melhor Banco','Qtd Contr.',
+        'Vlr Cont. Portabilidade','Troco Portabilidade','Vlr Cont. PMT Baixa','Troco PMT Baixa',
+        'Vlr Cont. TOTAL ★','Troco TOTAL','💳 Saque RMC BMG','💳 Saque RCC BMG','💳 Saque Daycoval',
         '💰 Líquido Total (Port.+PMT+Saque)'];
-      const hdrFills=['1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79',
+      const hdrs18=['Nome','CPF','Idade','Espécie','Melhor Banco','Qtd Contr.',
+        'Vlr Cont. Portabilidade','Troco Portabilidade','Vlr Cont. PMT Baixa','Troco PMT Baixa',
+        'Vlr Cont. TOTAL ★','Troco TOTAL','💳 Saque RMC BMG','💳 Saque RCC BMG','💳 Saque Daycoval',
+        '💳 Saque RMC PAN','💳 Saque RCC PAN','💰 Líquido Total (Port.+PMT+Saque)'];
+      const hdrFills16=['1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79',
         'B85C00','B85C00','1F4E79','1F4E79','2E75B6','2E75B6','2E75B6','833C00'];
-      hdrs.forEach((h,i)=>{
-        putCell(ws,12,i+1,cs(h,hdrFills[i],true,9,'FFFFFF','center',null,true));
+      const hdrFills18=['1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79','1F4E79',
+        'B85C00','B85C00','1F4E79','1F4E79','2E75B6','2E75B6','2E75B6','0277BD','0277BD','833C00'];
+      const finalHdrs = temPAN ? hdrs18 : hdrs16;
+      const finalFills = temPAN ? hdrFills18 : hdrFills16;
+      finalHdrs.forEach((h,i)=>{
+        putCell(ws,12,i+1,cs(h,finalFills[i],true,9,'FFFFFF','center',null,true));
       });
+      // Row 1 title merge — atualiza para nCols
+      addMerge(ws,1,1,1,nCols);
 
       // Data rows (from row 13)
       clientes.forEach((c,di)=>{
@@ -2472,7 +2591,13 @@ function exportarEstudoCompleto() {
         putCell(ws,ri,13,SAQV(c.saqRMCBMG,saqBg));
         putCell(ws,ri,14,SAQV(c.saqRCCBMG,saqBg));
         putCell(ws,ri,15,SAQV(c.saqDAY,saqBg));
-        putCell(ws,ri,16,LIQV(c.liquido));
+        if(temPAN){
+          putCell(ws,ri,16,SAQV(c.saqRMCPAN,'D0EAF8'));
+          putCell(ws,ri,17,SAQV(c.saqRCCPAN,'D0EAF8'));
+          putCell(ws,ri,18,LIQV(c.liquido));
+        } else {
+          putCell(ws,ri,16,LIQV(c.liquido));
+        }
       });
 
       // Total row
@@ -2480,17 +2605,17 @@ function exportarEstudoCompleto() {
       putCell(ws,tRi,1,TOT('TOTAL GERAL')); putCell(ws,tRi,2,TOT(''));
       putCell(ws,tRi,3,TOT('')); putCell(ws,tRi,4,TOT('')); putCell(ws,tRi,5,TOT(''));
       putCell(ws,tRi,6,TOT(clientes.reduce((s,c)=>s+c.qtdContr,0),'center',FMT_I));
-      [clientes.reduce((s,c)=>s+c.vlrPorto,0),clientes.reduce((s,c)=>s+c.trocoPorto,0),
+      const totVals=[clientes.reduce((s,c)=>s+c.vlrPorto,0),clientes.reduce((s,c)=>s+c.trocoPorto,0),
        clientes.reduce((s,c)=>s+c.vlrPMT,0),clientes.reduce((s,c)=>s+c.trocoPMT,0),
        clientes.reduce((s,c)=>s+c.vlrTotal,0),clientes.reduce((s,c)=>s+c.trocoTotal,0),
-       totSaqRMC,totSaqRCC,totSaqDAY,totLiq].forEach((v,i)=>{
-        putCell(ws,tRi,7+i,TOT(v,'right',FMT_M));
-      });
+       totSaqRMCBMG,totSaqRCCBMG,totSaqDAY,
+       ...(temPAN?[totSaqRMCPAN,totSaqRCCPAN]:[]),
+       totLiq];
+      totVals.forEach((v,i)=>{ putCell(ws,tRi,7+i,TOT(v,'right',FMT_M)); });
 
-      setCols(ws,[25,11,7,30,14,6,13,13,13,13,13,13,13,13,13,16]);
-      setRows(ws,[22,6,20,28,6,20,28,6,20,40,6,28,...clientes.map(()=>18),20]);
-      setRange(ws,tRi,16);
-      setView(ws,12);
+      setCols(ws,temPAN?[25,11,7,30,14,6,13,13,13,13,13,13,13,13,13,13,13,16]:[25,11,7,30,14,6,13,13,13,13,13,13,13,13,13,16]);
+      setRows(ws,[22,6,20,28,6,20,28,6,20,40,6,28,...clientes.map(()=>14),14]);
+      setRange(ws,tRi,nCols);
       return ws;
     }
 
@@ -2539,9 +2664,29 @@ function exportarEstudoCompleto() {
       putCell(ws,4,6,cs(semRCC,'00000000',true,14,'000000','center',FMT_I));
       putCell(ws,5,1,BLANK());
       // Row 6 headers
-      ['Código','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC']
-        .forEach((h,i)=>putCell(ws,6,i+1,H_BLUE(h)));
+      const temPANrc=Object.keys(panSaqueData).length>0;
+      const rc_hdrs=['Código','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC'];
+      if(temPANrc){rc_hdrs.push('Saque RMC PAN','Total','Saque RCC PAN','Total');}
+      rc_hdrs.forEach((h,i)=>{
+        const fill_c=i>=6?'0277BD':'2E75B6';
+        putCell(ws,6,i+1,cs(h,fill_c,true,9,'FFFFFF','center'));
+      });
       // Data rows
+      // Calcular saques PAN por banco
+      const panRMCByBank={}, panRCCByBank={};
+      if(temPANrc&&rawSheetData.length>1){
+        const ri_pan=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+        const ci_pan=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+        const rip=ri_pan>=0?ri_pan:38, cip=ci_pan>=0?ci_pan:45;
+        for(let r=1;r<rawSheetData.length;r++){
+          const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
+          const cpf=String(parseInt(parseFloat(String(row[0])))).padStart(11,'0');
+          const pan=panSaqueData[cpf]; if(!pan)continue;
+          const rmc=String(row[rip]||'').trim(), rcc=String(row[cip]||'').trim();
+          if(rmc==='623'&&pan.rmc){panRMCByBank['623']=(panRMCByBank['623']||{sum:0,cnt:0}); panRMCByBank['623'].sum+=pan.rmc; panRMCByBank['623'].cnt++;}
+          if(rcc==='623'&&pan.rcc){panRCCByBank['623']=(panRCCByBank['623']||{sum:0,cnt:0}); panRCCByBank['623'].sum+=pan.rcc; panRCCByBank['623'].cnt++;}
+        }
+      }
       allBanks.forEach((code,di)=>{
         const rri=7+di; const isHL=HL.has(code);
         const bgAB=isHL?(di%2?'FFF9C4':'FFFDE7'):(di%2?'F5F5F5':'00000000');
@@ -2552,15 +2697,29 @@ function exportarEstudoCompleto() {
         putCell(ws,rri,4,cs(rccCnt[code]||0,bgN,false,8,'000000','center',FMT_I));
         putCell(ws,rri,5,cs(di===0?semRMC:0,bgN,false,8,'000000','center',FMT_I));
         putCell(ws,rri,6,cs(di===0?semRCC:0,bgN,false,8,'000000','center',FMT_I));
+        if(temPANrc){
+          const prmc=panRMCByBank[code]; const prcc=panRCCByBank[code];
+          putCell(ws,rri,7,prmc?cs(prmc.sum,'D0EAF8',false,8,'000000','right',FMT_M):D('',bgN,false,8));
+          putCell(ws,rri,8,prmc?cs(prmc.cnt,'D0EAF8',false,8,'000000','center',FMT_I):D('',bgN,false,8));
+          putCell(ws,rri,9,prcc?cs(prcc.sum,'D0EAF8',false,8,'000000','right',FMT_M):D('',bgN,false,8));
+          putCell(ws,rri,10,prcc?cs(prcc.cnt,'D0EAF8',false,8,'000000','center',FMT_I):D('',bgN,false,8));
+        }
       });
       const tRi=7+allBanks.length;
+      const ncRC=temPANrc?10:6;
       ['TOTAL','',totRMC,totRCC,semRMC,semRCC].forEach((v,i)=>{
         putCell(ws,tRi,i+1,cs(v,'2E75B6',true,9,'FFFFFF',i<2?'left':'center',i>=2?FMT_I:null));
       });
-      setCols(ws,[9,22,14,14,14,14]);
-      setRows(ws,[24,8,22,28,8,22,...allBanks.map(()=>18),20]);
-      setRange(ws,tRi,6);
-      setView(ws,6);
+      if(temPANrc){
+        const totPanRMC=Object.values(panRMCByBank).reduce((s,v)=>s+v.sum,0);
+        const totPanRCC=Object.values(panRCCByBank).reduce((s,v)=>s+v.sum,0);
+        putCell(ws,tRi,7,cs(totPanRMC,'0277BD',true,9,'FFFFFF','right',FMT_M));
+        putCell(ws,tRi,8,cs('','0277BD',true,9,'FFFFFF','center'));
+        putCell(ws,tRi,9,cs(totPanRCC,'0277BD',true,9,'FFFFFF','right',FMT_M));
+        putCell(ws,tRi,10,cs('','0277BD',true,9,'FFFFFF','center'));
+      }
+      setCols(ws,temPANrc?[9,22,14,14,14,14,14,10,14,10]:[9,22,14,14,14,14]);
+      setRange(ws,tRi,ncRC);
       return ws;
     }
 
@@ -2590,10 +2749,7 @@ function exportarEstudoCompleto() {
       const tRi=2+rows.length;
       putCell(ws,tRi,1,TOT('Total Geral')); putCell(ws,tRi,2,TOT(totSD,'right',FMT_M));
       putCell(ws,tRi,3,TOT(totCnt,'center',FMT_I)); putCell(ws,tRi,4,TOT(totMed,'right',FMT_M));
-      setCols(ws,[22,18,14,14]);
-      setRows(ws,[22,...rows.map(()=>18),20]);
-      setRange(ws,tRi,4);
-      setView(ws,1);
+      setCols(ws,[22,18,14,14]); setRange(ws,tRi,4);
       return ws;
     }
 
@@ -2624,10 +2780,7 @@ function exportarEstudoCompleto() {
       putCell(ws,tRi,1,TOT('Total Geral')); putCell(ws,tRi,2,TOT(totVC,'right',FMT_M));
       putCell(ws,tRi,3,TOT(totTR,'right',FMT_M)); putCell(ws,tRi,4,TOT(totCnt,'center',FMT_I));
       putCell(ws,tRi,5,TOT(totMed,'right',FMT_M));
-      setCols(ws,[22,18,14,14,14]);
-      setRows(ws,[22,...rows.map(()=>18),20]);
-      setRange(ws,tRi,5);
-      setView(ws,1);
+      setCols(ws,[22,18,14,14,14]); setRange(ws,tRi,5);
       return ws;
     }
 
@@ -2660,9 +2813,7 @@ function exportarEstudoCompleto() {
         putCell(ws,ri,16,D(r.motivo||'',bg));
       });
       setCols(ws,[12,25,7,30,20,15,9,12,9,14,8,10,12,10,8,35]);
-      setRows(ws,[22,...allResults.map(()=>18)]);
       setRange(ws,2+allResults.length,16);
-      setView(ws,1);
       return ws;
     }
 
@@ -2678,7 +2829,10 @@ function exportarEstudoCompleto() {
       const nIdx=rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
       const bI=bIdx>=0?bIdx:1, nI=nIdx>=0?nIdx:2;
       const temDatafast=Object.keys(datafastResultsBMG).length>0;
-      const hdrs=['CPF','Benefício','Nome']; if(temDatafast)hdrs.push('Limite Saque BMG (R$)');
+      const isPANtab = tabName.includes('PAN');
+      const hdrs=['CPF','Benefício','Nome'];
+      if(temDatafast && !isPANtab) hdrs.push('Limite Saque BMG (R$)');
+      if(isPANtab) hdrs.push('Limite Saque RMC PAN (R$)', 'Limite Saque RCC PAN (R$)');
       hdrs.forEach((h,i)=>putCell(ws,1,i+1,H_DARK(h)));
       let di=0;
       for(let r=1;r<rawSheetData.length;r++){
@@ -2695,18 +2849,23 @@ function exportarEstudoCompleto() {
         putCell(ws,ri,1,D(cpf,bg,false,8));
         putCell(ws,ri,2,D(String(row[bI]||''),bg,false,8));
         putCell(ws,ri,3,D(String(row[nI]||''),bg,false,8));
-        if(temDatafast){
+        if(temDatafast && !isPANtab){
           const info=datafastResultsBMG[cpf];
           const lim=info&&info.limite>0?info.limite:null;
           putCell(ws,ri,4,lim!==null?cs(lim,bg,false,8,'000000','right',FMT_M):D('Sem limite',bg,false,8));
         }
+        if(isPANtab){
+          const pan=panSaqueData[cpf];
+          const limRMC=pan&&pan.rmc?pan.rmc:null;
+          const limRCC=pan&&pan.rcc?pan.rcc:null;
+          putCell(ws,ri,4,limRMC!==null?cs(limRMC,bg,false,8,'000000','right',FMT_M):D('-',bg,false,8));
+          putCell(ws,ri,5,limRCC!==null?cs(limRCC,bg,false,8,'000000','right',FMT_M):D('-',bg,false,8));
+        }
         di++;
       }
-      const nc=temDatafast?4:3;
-      setCols(ws,[13,13,25,18].slice(0,nc));
-      setRows(ws,[22,...Array.from({length:di},()=>18)]);
-      setRange(ws,2+di,nc);
-      setView(ws,1);
+      const nc=isPANtab?5:(temDatafast?4:3);
+      setCols(ws,[13,13,25,18,18].slice(0,nc));
+      setRange(ws,Math.max(2,2+di),nc);
       return ws;
     }
 
