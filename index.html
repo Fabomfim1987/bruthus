@@ -2453,7 +2453,6 @@ function exportarEstudoCompleto() {
           if (lim) {
             if (rmc==='318') clienteMap[cpf].saqRMCBMG += lim;
             if (rcc==='318') clienteMap[cpf].saqRCCBMG += lim;
-            if (rmc==='707'||rcc==='707') clienteMap[cpf].saqDAY += lim;
           }
         }
         if (temPAN) {
@@ -2591,8 +2590,8 @@ function exportarEstudoCompleto() {
           const cpf=cpfNorm(row[0]); const info=datafastResultsBMG[cpf];
           const lim=info&&info.limite>0?info.limite:0; if(!lim) continue;
           const rmc=String(row[ri2]||'').trim(), rcc=String(row[ci2]||'').trim();
-          if(rmc){if(!saqBanco[rmc])saqBanco[rmc]={rv:0,rq:0,cv:0,cq:0}; saqBanco[rmc].rv+=lim; saqBanco[rmc].rq++;}
-          if(rcc){if(!saqBanco[rcc])saqBanco[rcc]={rv:0,rq:0,cv:0,cq:0}; saqBanco[rcc].cv+=lim; saqBanco[rcc].cq++;}
+          if(rmc==='318'){if(!saqBanco[rmc])saqBanco[rmc]={rv:0,rq:0,cv:0,cq:0}; saqBanco[rmc].rv+=lim; saqBanco[rmc].rq++;}
+          if(rcc==='318'){if(!saqBanco[rcc])saqBanco[rcc]={rv:0,rq:0,cv:0,cq:0}; saqBanco[rcc].cv+=lim; saqBanco[rcc].cq++;}
         }
       }
       if(temPAN){
