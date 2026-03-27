@@ -2374,7 +2374,7 @@ function exportarEstudoCompleto() {
         nome:r.nome, cpf, idade:r.idade, especie:r.especie,
         melhorBanco:'', qtdContr:0,
         vlrPorto:0, trocoPorto:0, vlrPMT:0, trocoPMT:0,
-        saqRMCBMG:0, saqRCCBMG:0, saqDAY:0
+        saqRMCBMG:0, saqRCCBMG:0, saqDAY:0, saqRMCPAN:0, saqRCCPAN:0
       };
       const c = clienteMap[cpf];
       c.qtdContr++;
@@ -2403,13 +2403,15 @@ function exportarEstudoCompleto() {
         if (rmc==='318') clienteMap[cpf].saqRMCBMG += lim;
         if (rcc==='318') clienteMap[cpf].saqRCCBMG += lim;
         if (rmc==='707'||rcc==='707') clienteMap[cpf].saqDAY += lim;
+        if (rmc==='623') clienteMap[cpf].saqRMCPAN += lim;
+        if (rcc==='623') clienteMap[cpf].saqRCCPAN += lim;
       }
     }
 
     const clientes = Object.values(clienteMap).map(c => {
       c.vlrTotal = c.vlrPorto + c.vlrPMT;
       c.trocoTotal = c.trocoPorto + c.trocoPMT;
-      c.liquido = c.vlrTotal + c.saqRMCBMG + c.saqRCCBMG + c.saqDAY;
+      c.liquido = c.trocoPorto + c.trocoPMT + c.saqRMCBMG + c.saqRCCBMG + c.saqDAY + (c.saqRMCPAN||0) + (c.saqRCCPAN||0);
       return c;
     }).sort((a,b) => b.liquido - a.liquido);
 
@@ -2420,6 +2422,8 @@ function exportarEstudoCompleto() {
     const totSaqRMC = clientes.reduce((s,c)=>s+c.saqRMCBMG,0);
     const totSaqRCC = clientes.reduce((s,c)=>s+c.saqRCCBMG,0);
     const totSaqDAY = clientes.reduce((s,c)=>s+c.saqDAY,0);
+    const totSaqRMCPAN = clientes.reduce((s,c)=>s+(c.saqRMCPAN||0),0);
+    const totSaqRCCPAN = clientes.reduce((s,c)=>s+(c.saqRCCPAN||0),0);
     const totLiq = clientes.reduce((s,c)=>s+c.liquido,0);
 
     const rp_rows = [
@@ -2428,26 +2432,27 @@ function exportarEstudoCompleto() {
       ['Total Clientes','','Total Contratos','','Vlr Porto','','Vlr PMT',''],
       [totCli,'',totContr,'',totPorto,'',totPMT,''],
       [],
-      ['Saque RMC BMG','','Saque RCC BMG','','Saque Daycoval','','',''],
-      [totSaqRMC,'',totSaqRCC,'',totSaqDAY,'','',''],
+      ['Saque RMC BMG','','Saque RCC BMG','','Saque Daycoval','','Saque RMC PAN','','Saque RCC PAN',''],
+      [totSaqRMC,'',totSaqRCC,'',totSaqDAY,'',totSaqRMCPAN,'',totSaqRCCPAN,''],
       [],
       ['LIQUIDO TOTAL (Porto + PMT + Saque)'],
       [totLiq],
       [],
       ['Nome','CPF','Idade','Especie','Melhor Banco','Qtd Contr.',
        'Vlr Cont. Porto','Troco Porto','Vlr Cont. PMT','Troco PMT',
-       'Vlr Cont. TOTAL','Troco TOTAL','Saque RMC BMG','Saque RCC BMG','Saque Daycoval','Liquido Total']
+       'Saque RMC BMG','Saque RCC BMG','Saque Daycoval','Saque RMC PAN','Saque RCC PAN','Liquido Total (Troco+Saques)']
     ];
     clientes.forEach(c => {
       rp_rows.push([c.nome, {t:'s',v:String(c.cpf).padStart(11,'0')}, c.idade, c.especie, c.melhorBanco, c.qtdContr,
         c.vlrPorto, c.trocoPorto, c.vlrPMT, c.trocoPMT,
-        c.vlrTotal, c.trocoTotal, c.saqRMCBMG, c.saqRCCBMG, c.saqDAY, c.liquido]);
+        c.saqRMCBMG, c.saqRCCBMG, c.saqDAY, (c.saqRMCPAN||0), (c.saqRCCPAN||0), c.liquido]);
     });
     rp_rows.push(['TOTAL GERAL','','','','',totContr,
       clientes.reduce((s,c)=>s+c.vlrPorto,0), clientes.reduce((s,c)=>s+c.trocoPorto,0),
       clientes.reduce((s,c)=>s+c.vlrPMT,0), clientes.reduce((s,c)=>s+c.trocoPMT,0),
-      clientes.reduce((s,c)=>s+c.vlrTotal,0), clientes.reduce((s,c)=>s+c.trocoTotal,0),
-      totSaqRMC, totSaqRCC, totSaqDAY, totLiq]);
+      totSaqRMC, totSaqRCC, totSaqDAY,
+      clientes.reduce((s,c)=>s+(c.saqRMCPAN||0),0), clientes.reduce((s,c)=>s+(c.saqRCCPAN||0),0),
+      totLiq]);
     addSheet(wb, 'Resumo Portabilidade', rp_rows);
 
     // ── 2. RESUMO CARTAO ─────────────────────────────────────
