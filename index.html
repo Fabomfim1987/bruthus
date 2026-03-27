@@ -2466,13 +2466,27 @@ function exportarEstudoCompleto() {
         const ri2=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
         const ci2=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
         const ri=ri2>=0?ri2:38,ci=ci2>=0?ci2:45;
+        const nomeIdx2=rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
+        const nI2=nomeIdx2>=0?nomeIdx2:2;
         for(let r=1;r<rawSheetData.length;r++){
           const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
           const cpf=cpfNorm(row[0]); const pan=panSaqueData[cpf];
-          if(!pan||!clienteMap[cpf])continue;
+          if(!pan)continue;
           const rmc=String(row[ri]||'').trim(),rcc=String(row[ci]||'').trim();
-          if(rmc==='623'&&pan.rmc)clienteMap[cpf].saqRMCPAN+=pan.rmc;
-          if(rcc==='623'&&pan.rcc)clienteMap[cpf].saqRCCPAN+=pan.rcc;
+          const hasPANrmc=(rmc==='623'&&pan.rmc);
+          const hasPANrcc=(rcc==='623'&&pan.rcc);
+          if(!hasPANrmc&&!hasPANrcc)continue;
+          // Cria entrada no clienteMap se CPF não tem contratos no Fênix
+          if(!clienteMap[cpf]){
+            clienteMap[cpf]={
+              nome:String(row[nI2]||''),cpf,idade:'',especie:'',
+              melhorBanco:'',qtdContr:0,
+              vlrPorto:0,trocoPorto:0,vlrPMT:0,trocoPMT:0,
+              saqRMCBMG:0,saqRCCBMG:0,saqDAY:0,saqRMCPAN:0,saqRCCPAN:0
+            };
+          }
+          if(hasPANrmc)clienteMap[cpf].saqRMCPAN+=pan.rmc;
+          if(hasPANrcc)clienteMap[cpf].saqRCCPAN+=pan.rcc;
         }
       }
 
@@ -2665,13 +2679,31 @@ function exportarEstudoCompleto() {
       putCell(ws,5,1,BLANK());
       // Row 6 headers
       const temPANrc=Object.keys(panSaqueData).length>0;
+      const temBMGrc=Object.keys(datafastResultsBMG).length>0;
       const rc_hdrs=['Código','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC'];
-      if(temPANrc){rc_hdrs.push('Saque RMC PAN','Total','Saque RCC PAN','Total');}
+      if(temBMGrc){rc_hdrs.push('Saque RMC BMG (R$)','Qtd','Saque RCC BMG (R$)','Qtd');}
+      if(temPANrc){rc_hdrs.push('Saque RMC PAN (R$)','Qtd','Saque RCC PAN (R$)','Qtd');}
       rc_hdrs.forEach((h,i)=>{
-        const fill_c=i>=6?'0277BD':'2E75B6';
+        const fill_c=i>=6?(i>=6+( temBMGrc?4:0)?'0277BD':'1F4E79'):'2E75B6';
         putCell(ws,6,i+1,cs(h,fill_c,true,9,'FFFFFF','center'));
       });
       // Data rows
+      // Calcular saques BMG por banco (Datafast)
+      const bmgRMCSaq={sum:0,cnt:0}, bmgRCCSaq={sum:0,cnt:0};
+      const temBMGsaq=Object.keys(datafastResultsBMG).length>0;
+      if(temBMGsaq&&rawSheetData.length>1){
+        const ri_b=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+        const ci_b=rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+        const rib=ri_b>=0?ri_b:38, cib=ci_b>=0?ci_b:45;
+        for(let r=1;r<rawSheetData.length;r++){
+          const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2]))continue;
+          const cpf=String(parseInt(parseFloat(String(row[0])))).padStart(11,'0');
+          const info=datafastResultsBMG[cpf]; if(!info||!info.limite||info.limite<=0)continue;
+          const rmc=String(row[rib]||'').trim(), rcc=String(row[cib]||'').trim();
+          if(rmc==='318'){bmgRMCSaq.sum+=info.limite; bmgRMCSaq.cnt++;}
+          if(rcc==='318'){bmgRCCSaq.sum+=info.limite; bmgRCCSaq.cnt++;}
+        }
+      }
       // Calcular saques PAN por banco
       const panRMCByBank={}, panRCCByBank={};
       if(temPANrc&&rawSheetData.length>1){
@@ -2697,28 +2729,52 @@ function exportarEstudoCompleto() {
         putCell(ws,rri,4,cs(rccCnt[code]||0,bgN,false,8,'000000','center',FMT_I));
         putCell(ws,rri,5,cs(di===0?semRMC:0,bgN,false,8,'000000','center',FMT_I));
         putCell(ws,rri,6,cs(di===0?semRCC:0,bgN,false,8,'000000','center',FMT_I));
+        if(temBMGrc){
+          const colBMG=7;
+          // BMG saque only for bank 318
+          if(code==='318'){
+            putCell(ws,rri,colBMG,  cs(bmgRMCSaq.sum,'DDEEFF',false,8,'000000','right',FMT_M));
+            putCell(ws,rri,colBMG+1,cs(bmgRMCSaq.cnt,'DDEEFF',false,8,'000000','center',FMT_I));
+            putCell(ws,rri,colBMG+2,cs(bmgRCCSaq.sum,'DDEEFF',false,8,'000000','right',FMT_M));
+            putCell(ws,rri,colBMG+3,cs(bmgRCCSaq.cnt,'DDEEFF',false,8,'000000','center',FMT_I));
+          } else {
+            for(let cc=0;cc<4;cc++) putCell(ws,rri,colBMG+cc,D('',bgN,false,8));
+          }
+        }
         if(temPANrc){
+          const colPAN=7+(temBMGrc?4:0);
           const prmc=panRMCByBank[code]; const prcc=panRCCByBank[code];
-          putCell(ws,rri,7,prmc?cs(prmc.sum,'D0EAF8',false,8,'000000','right',FMT_M):D('',bgN,false,8));
-          putCell(ws,rri,8,prmc?cs(prmc.cnt,'D0EAF8',false,8,'000000','center',FMT_I):D('',bgN,false,8));
-          putCell(ws,rri,9,prcc?cs(prcc.sum,'D0EAF8',false,8,'000000','right',FMT_M):D('',bgN,false,8));
-          putCell(ws,rri,10,prcc?cs(prcc.cnt,'D0EAF8',false,8,'000000','center',FMT_I):D('',bgN,false,8));
+          putCell(ws,rri,colPAN,  prmc?cs(prmc.sum,'D0EAF8',false,8,'000000','right',FMT_M):D('',bgN,false,8));
+          putCell(ws,rri,colPAN+1,prmc?cs(prmc.cnt,'D0EAF8',false,8,'000000','center',FMT_I):D('',bgN,false,8));
+          putCell(ws,rri,colPAN+2,prcc?cs(prcc.sum,'D0EAF8',false,8,'000000','right',FMT_M):D('',bgN,false,8));
+          putCell(ws,rri,colPAN+3,prcc?cs(prcc.cnt,'D0EAF8',false,8,'000000','center',FMT_I):D('',bgN,false,8));
         }
       });
       const tRi=7+allBanks.length;
-      const ncRC=temPANrc?10:6;
+      const ncRC=6+(temBMGrc?4:0)+(temPANrc?4:0);
       ['TOTAL','',totRMC,totRCC,semRMC,semRCC].forEach((v,i)=>{
         putCell(ws,tRi,i+1,cs(v,'2E75B6',true,9,'FFFFFF',i<2?'left':'center',i>=2?FMT_I:null));
       });
+      if(temBMGrc){
+        const cb=7;
+        putCell(ws,tRi,cb,  cs(bmgRMCSaq.sum,'1F4E79',true,9,'FFFFFF','right',FMT_M));
+        putCell(ws,tRi,cb+1,cs(bmgRMCSaq.cnt,'1F4E79',true,9,'FFFFFF','center',FMT_I));
+        putCell(ws,tRi,cb+2,cs(bmgRCCSaq.sum,'1F4E79',true,9,'FFFFFF','right',FMT_M));
+        putCell(ws,tRi,cb+3,cs(bmgRCCSaq.cnt,'1F4E79',true,9,'FFFFFF','center',FMT_I));
+      }
       if(temPANrc){
+        const cp=7+(temBMGrc?4:0);
         const totPanRMC=Object.values(panRMCByBank).reduce((s,v)=>s+v.sum,0);
         const totPanRCC=Object.values(panRCCByBank).reduce((s,v)=>s+v.sum,0);
-        putCell(ws,tRi,7,cs(totPanRMC,'0277BD',true,9,'FFFFFF','right',FMT_M));
-        putCell(ws,tRi,8,cs('','0277BD',true,9,'FFFFFF','center'));
-        putCell(ws,tRi,9,cs(totPanRCC,'0277BD',true,9,'FFFFFF','right',FMT_M));
-        putCell(ws,tRi,10,cs('','0277BD',true,9,'FFFFFF','center'));
+        putCell(ws,tRi,cp,  cs(totPanRMC,'0277BD',true,9,'FFFFFF','right',FMT_M));
+        putCell(ws,tRi,cp+1,cs(0,'0277BD',true,9,'FFFFFF','center',FMT_I));
+        putCell(ws,tRi,cp+2,cs(totPanRCC,'0277BD',true,9,'FFFFFF','right',FMT_M));
+        putCell(ws,tRi,cp+3,cs(0,'0277BD',true,9,'FFFFFF','center',FMT_I));
       }
-      setCols(ws,temPANrc?[9,22,14,14,14,14,14,10,14,10]:[9,22,14,14,14,14]);
+      const colWidths=[9,22,14,14,14,14];
+      if(temBMGrc)colWidths.push(16,9,16,9);
+      if(temPANrc)colWidths.push(16,9,16,9);
+      setCols(ws,colWidths);
       setRange(ws,tRi,ncRC);
       return ws;
     }
@@ -2739,7 +2795,7 @@ function exportarEstudoCompleto() {
       rows.forEach((r,di)=>{
         const ri=2+di; const bg=di%2?'F5F5F5':'FFFFFF';
         putCell(ws,ri,1,D(r.b,bg)); putCell(ws,ri,2,DM(r.sd,bg));
-        putCell(ws,ri,3,D(r.cnt,bg,false,9,'000000','left'));
+        putCell(ws,ri,3,cs(r.cnt,bg,false,9,'000000','left',FMT_I));
         putCell(ws,ri,4,DM(r.med,bg));
       });
       const totSD=rows.reduce((s,r)=>s+r.sd,0);
@@ -2748,7 +2804,7 @@ function exportarEstudoCompleto() {
       const totMed=totCnt?allPorto.reduce((s,r)=>s+fmtN(r.parcela),0)/totCnt:0;
       const tRi=2+rows.length;
       putCell(ws,tRi,1,TOT('Total Geral')); putCell(ws,tRi,2,TOT(totSD,'right',FMT_M));
-      putCell(ws,tRi,3,TOT(totCnt,'center',FMT_I)); putCell(ws,tRi,4,TOT(totMed,'right',FMT_M));
+      putCell(ws,tRi,3,cs(totCnt,'D9D9D9',true,9,'000000','center',FMT_I)); putCell(ws,tRi,4,TOT(totMed,'right',FMT_M));
       setCols(ws,[22,18,14,14]); setRange(ws,tRi,4);
       return ws;
     }
@@ -2770,7 +2826,7 @@ function exportarEstudoCompleto() {
       rows.forEach((r,di)=>{
         const ri=2+di; const bg=di%2?'F5F5F5':'FFFFFF';
         putCell(ws,ri,1,D(r.b,bg)); putCell(ws,ri,2,DM(r.vc,bg)); putCell(ws,ri,3,DM(r.tr,bg));
-        putCell(ws,ri,4,D(r.cnt,bg,false,9,'000000','left')); putCell(ws,ri,5,DM(r.med,bg));
+        putCell(ws,ri,4,cs(r.cnt,bg,false,9,'000000','left',FMT_I)); putCell(ws,ri,5,DM(r.med,bg));
       });
       const totVC=rows.reduce((s,r)=>s+r.vc,0),totTR=rows.reduce((s,r)=>s+r.tr,0);
       const totCnt=rows.reduce((s,r)=>s+r.cnt,0);
@@ -2830,8 +2886,9 @@ function exportarEstudoCompleto() {
       const bI=bIdx>=0?bIdx:1, nI=nIdx>=0?nIdx:2;
       const temDatafast=Object.keys(datafastResultsBMG).length>0;
       const isPANtab = tabName.includes('PAN');
+      const isBMGtab = codigoBanco === '318';
       const hdrs=['CPF','Benefício','Nome'];
-      if(temDatafast && !isPANtab) hdrs.push('Limite Saque BMG (R$)');
+      if(temDatafast && isBMGtab) hdrs.push('Limite Saque BMG (R$)');
       if(isPANtab) hdrs.push('Limite Saque RMC PAN (R$)', 'Limite Saque RCC PAN (R$)');
       hdrs.forEach((h,i)=>putCell(ws,1,i+1,H_DARK(h)));
       let di=0;
@@ -2849,7 +2906,7 @@ function exportarEstudoCompleto() {
         putCell(ws,ri,1,D(cpf,bg,false,8));
         putCell(ws,ri,2,D(String(row[bI]||''),bg,false,8));
         putCell(ws,ri,3,D(String(row[nI]||''),bg,false,8));
-        if(temDatafast && !isPANtab){
+        if(temDatafast && isBMGtab){
           const info=datafastResultsBMG[cpf];
           const lim=info&&info.limite>0?info.limite:null;
           putCell(ws,ri,4,lim!==null?cs(lim,bg,false,8,'000000','right',FMT_M):D('Sem limite',bg,false,8));
@@ -2863,7 +2920,7 @@ function exportarEstudoCompleto() {
         }
         di++;
       }
-      const nc=isPANtab?5:(temDatafast?4:3);
+      const nc=isPANtab?5:(temDatafast&&isBMGtab?4:3);
       setCols(ws,[13,13,25,18,18].slice(0,nc));
       setRange(ws,Math.max(2,2+di),nc);
       return ws;
