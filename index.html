@@ -2411,7 +2411,7 @@ function exportarEstudoCompleto() {
       return s;
     };
 
-    const cv = (v, s) => ({v, s, t: typeof v === 'number' ? 'n' : 's'});
+    const cv = (v, s) => { const val = (v && typeof v === 'object' && 'v' in v) ? v.v : v; return {v: val, s, t: typeof val === 'number' ? 'n' : 's'}; };
     const cpfNorm = v => { try { const n=parseInt(parseFloat(String(v))); return isNaN(n)?'':String(n).padStart(11,'0'); } catch(e){return '';} };
 
     // ── 1. MONTA DADOS ─────────────────────────────────────
@@ -2542,7 +2542,7 @@ function exportarEstudoCompleto() {
         const row = 13+i;
         const hex = bancoCor(c.melhorBanco);
         const cs = (money) => cellStyled(hex, false, money);
-        W(1,row,c.nome,cs()); W(2,row,{t:'s',v:String(c.cpf).padStart(11,'0')},cs());
+        W(1,row,c.nome,cs()); W(2,row,String(c.cpf).padStart(11,'0'),{...cs(),numFmt:'@'});
         W(3,row,c.idade,cs()); W(4,row,c.especie,cs());
         W(5,row,c.melhorBanco,cs()); W(6,row,c.qtdContr,cs());
         W(7,row,c.vlrPorto,cs(1)); W(8,row,c.trocoPorto,cs(1));
@@ -2647,10 +2647,10 @@ function exportarEstudoCompleto() {
         W(1,r,code,cs()); W(2,r,BMAP[code]||('Banco '+code),cs());
         W(3,r,rmcCnt[code]||0,cn()); W(4,r,rccCnt[code]||0,cn());
         W(5,r,i===0?semRMC:0,cn()); W(6,r,i===0?semRCC:0,cn());
-        W(7,r,sb.rv||null,cm()); W(8,r,sb.rq||null,cn());
-        W(9,r,sb.cv||null,cm()); W(10,r,sb.cq||null,cn());
-        W(11,r,sb.rv&&code==='623'?sb.rv:null,cm()); W(12,r,sb.rq&&code==='623'?sb.rq:null,cn());
-        W(13,r,sb.cv&&code==='623'?sb.cv:null,cm()); W(14,r,sb.cq&&code==='623'?sb.cq:null,cn());
+        W(7,r,code==='318'&&sb.rv>0?sb.rv:'',code==='318'&&sb.rv>0?cm():cs()); W(8,r,code==='318'&&sb.rq>0?sb.rq:'',code==='318'&&sb.rq>0?cn():cs());
+        W(9,r,code==='318'&&sb.cv>0?sb.cv:'',code==='318'&&sb.cv>0?cm():cs()); W(10,r,code==='318'&&sb.cq>0?sb.cq:'',code==='318'&&sb.cq>0?cn():cs());
+        W(11,r,code==='623'&&sb.rv>0?sb.rv:'',code==='623'&&sb.rv>0?cm():cs()); W(12,r,code==='623'&&sb.rq>0?sb.rq:'',code==='623'&&sb.rq>0?cn():cs());
+        W(13,r,code==='623'&&sb.cv>0?sb.cv:'',code==='623'&&sb.cv>0?cm():cs()); W(14,r,code==='623'&&sb.cq>0?sb.cq:'',code==='623'&&sb.cq>0?cn():cs());
       });
       // Total
       const tr=7+allB.length;
@@ -2744,7 +2744,7 @@ function exportarEstudoCompleto() {
         const hex=r.elegivel?bancoCor(r.destino):null;
         const cs=(money)=>({fill:hex?fill(hex):{patternType:'none'},font:font(0,'000000',9),alignment:align(money?'right':'left','center'),border:border(),numFmt:money?'#,##0.00':'@'});
         const row=[
-          {t:'s',v:cpfNorm(r.cpf)},r.nome,r.idade,r.especie,r.bancoOrigem,r.contrato,
+          cpfNorm(r.cpf),r.nome,r.idade,r.especie,r.bancoOrigem,r.contrato,
           fmtN(r.parcela),fmtN(r.saldo),r.prazo,r.destino,
           fmtN(r.taxa),r.coef?Math.round(r.coef*100000)/100000:0,
           fmtN(r.valorContrato),fmtN(r.troco),
@@ -2768,7 +2768,10 @@ function exportarEstudoCompleto() {
       const nIdx=rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
       const bI=bIdx>=0?bIdx:1, nI=nIdx>=0?nIdx:2;
       const isBMG=codigoBanco==='318';
-      const hdrs=['CPF','Benefício','Nome']; if(temDatafast&&isBMG) hdrs.push('Limite Saque BMG (R$)');
+      const isPANtab=codigoBanco==='623';
+      const hdrs=['CPF','Benefício','Nome'];
+      if(temDatafast&&isBMG) hdrs.push('Limite Saque BMG (R$)');
+      else if(isPANtab&&typeof panSaqueData!=='undefined'&&Object.keys(panSaqueData).length>0) hdrs.push('Limite Saque PAN (R$)');
       const dataRows=[];
       for(let r=1;r<rawSheetData.length;r++){
         const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2])) continue;
@@ -2782,6 +2785,11 @@ function exportarEstudoCompleto() {
         const cpf=cpfNorm(row[0]); if(!cpf) continue;
         const dr=[cpf,String(row[bI]||''),String(row[nI]||'')];
         if(temDatafast&&isBMG){const info=datafastResultsBMG[cpf]; dr.push(info&&info.limite>0?info.limite:'Sem limite');}
+        else if(isPANtab&&typeof panSaqueData!=='undefined'&&Object.keys(panSaqueData).length>0){
+          const pan=panSaqueData[cpf];
+          const limPAN=(pan&&(pan.rmc>0||pan.rcc>0))?(pan.rmc||pan.rcc):null;
+          dr.push(limPAN!==null?limPAN:'Sem limite');
+        }
         dataRows.push(dr);
       }
       const ws5={};
