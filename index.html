@@ -2427,20 +2427,20 @@ function exportarEstudoCompleto() {
     const totLiq = clientes.reduce((s,c)=>s+c.liquido,0);
 
     const rp_rows = [
-      ['RESUMO PORTABILIDADE — POR CLIENTE | Ordenado por Liquido Total'],
+      ['RESUMO PORTABILIDADE — POR CLIENTE  |  Ordenado por Líquido Total'],
       [],
-      ['Total Clientes','','Total Contratos','','Vlr Porto','','Vlr PMT',''],
+      ['Total Clientes','','Total Contratos','','Vlr Contrato Portabilidade','','Vlr Contrato PMT Baixa',''],
       [totCli,'',totContr,'',totPorto,'',totPMT,''],
       [],
       ['Saque RMC BMG','','Saque RCC BMG','','Saque Daycoval','','Saque RMC PAN','','Saque RCC PAN',''],
       [totSaqRMC,'',totSaqRCC,'',totSaqDAY,'',totSaqRMCPAN,'',totSaqRCCPAN,''],
       [],
-      ['LIQUIDO TOTAL (Porto + PMT + Saque)'],
+      ['⭐  LÍQUIDO TOTAL  (Portabilidade + PMT Baixa + Saque Cartão)'],
       [totLiq],
       [],
-      ['Nome','CPF','Idade','Especie','Melhor Banco','Qtd Contr.',
-       'Vlr Cont. Porto','Troco Porto','Vlr Cont. PMT','Troco PMT',
-       'Saque RMC BMG','Saque RCC BMG','Saque Daycoval','Saque RMC PAN','Saque RCC PAN','Liquido Total (Troco+Saques)']
+      ['Nome','CPF','Idade','Espécie','Melhor Banco','Qtd Contr.',
+       'Vlr Cont. Portabilidade','Troco Portabilidade','Vlr Cont. PMT Baixa','Troco PMT Baixa',
+       '💳 Saque RMC BMG','💳 Saque RCC BMG','💳 Saque Daycoval','💳 Saque RMC PAN','💳 Saque RCC PAN','💰 Líquido Total (Port.+PMT+Saque)']
     ];
     clientes.forEach(c => {
       rp_rows.push([c.nome, {t:'s',v:String(c.cpf).padStart(11,'0')}, c.idade, c.especie, c.melhorBanco, c.qtdContr,
@@ -2529,11 +2529,11 @@ function exportarEstudoCompleto() {
     const totRMC2 = Object.values(rmcCnt2).reduce((s,v)=>s+v,0);
     const totRCC2 = Object.values(rccCnt2).reduce((s,v)=>s+v,0);
     const rc_rows = [
-      ['RESUMO CARTAO — RMC / RCC'],
+      ['RESUMO CARTÃO  —  RMC / RCC'],
       [],
       ['Total CPF com RMC', totRMC2, 'Total CPF com RCC', totRCC2, 'Total SEM RMC', semRMC2, 'Total SEM RCC', semRCC2],
       [],
-      ['Codigo','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC',
+      ['Código','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC',
        'Saque RMC BMG (R$)','Qtd','Saque RCC BMG (R$)','Qtd','Saque RMC PAN (R$)','Qtd','Saque RCC PAN (R$)','Qtd']
     ];
     allBanks2.forEach((code,i) => {
@@ -2575,7 +2575,7 @@ function exportarEstudoCompleto() {
     const tab3 = Object.entries(bancoMapPorto)
       .map(([b,v])=>({b,sd:v.sd,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0}))
       .sort((a,b2)=>b2.sd-a.sd);
-    const apo_rows = [['Banco Origem','Soma Saldo Devedor','Contagem Parcelas','Media Parcela']];
+    const apo_rows = [['Banco Origem','Soma Saldo Devedor','Contagem Parcelas','Média Parcela']];
     tab3.forEach(r => apo_rows.push([r.b, fmtN(r.sd), r.cnt, fmtN(r.med)]));
     const apoCnt = tab3.reduce((s,r)=>s+r.cnt,0);
     apo_rows.push(['Total Geral',
@@ -2594,7 +2594,7 @@ function exportarEstudoCompleto() {
     const tab4 = Object.entries(bancoMapPMT)
       .map(([b,v])=>({b,vc:v.vc,tr:v.tr,cnt:v.cnt,med:v.cnt?v.sp/v.cnt:0}))
       .sort((a,b2)=>b2.tr-a.tr);
-    const apb_rows = [['Banco Origem','Soma Vlr Contrato','Soma Troco','Contagem Parcelas','Media Parcela']];
+    const apb_rows = [['Banco Origem','Soma Vlr Contrato','Soma Troco','Contagem Parcelas','Média Parcela']];
     tab4.forEach(r => apb_rows.push([r.b, fmtN(r.vc), fmtN(r.tr), r.cnt, fmtN(r.med)]));
     const apbCnt = tab4.reduce((s,r)=>s+r.cnt,0);
     apb_rows.push(['Total Geral',
@@ -2603,9 +2603,9 @@ function exportarEstudoCompleto() {
     addSheet(wb, 'Analitico Bancos PMT Baixa', apb_rows);
 
     // ── 5. ELEGIVEIS ─────────────────────────────────────────
-    const el_rows = [['CPF','Nome','Idade','Especie','Banco Origem','Contrato',
-      'Parcela','Saldo Devedor','Prazo','Banco Prioritario','Taxa Aplicada',
-      'Coeficiente','Valor Contrato','Troco','Elegivel','Motivo']];
+    const el_rows = [['CPF','Nome','Idade','Espécie','Banco Origem','Contrato',
+      'Parcela','Saldo Devedor','Prazo','Banco Prioritário','Taxa Aplicada',
+      'Coeficiente','Valor Contrato','Troco','Elegível','Motivo']];
     allResults.forEach(r => {
       el_rows.push([{t:'s',v:String(r.cpf).padStart(11,'0')}, r.nome, r.idade, r.especie, r.bancoOrigem, r.contrato,
         fmtN(r.parcela), fmtN(r.saldo), r.prazo, r.destino,
