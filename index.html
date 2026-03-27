@@ -2476,23 +2476,93 @@ function exportarEstudoCompleto() {
     }
     const allBanks2 = Array.from(new Set([...Object.keys(rmcCnt2),...Object.keys(rccCnt2)]))
       .sort((a,b)=>((rmcCnt2[b]||0)+(rccCnt2[b]||0))-((rmcCnt2[a]||0)+(rccCnt2[a]||0)));
+    // Calcula saques por banco para Resumo Cartao
+    const saqByBanco = {};
+    // Saques Datafast BMG (318)
+    if (temDatafast) {
+      const rmi = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+      const rci2b = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+      const rib = rmi>=0?rmi:38, cib = rci2b>=0?rci2b:45;
+      for (let r=1; r<rawSheetData.length; r++) {
+        const row = rawSheetData[r];
+        if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
+        const cpf = cpfNorm(row[0]);
+        const info = datafastResultsBMG[cpf];
+        const lim = info && info.limite > 0 ? info.limite : 0;
+        if (!lim) continue;
+        const rmc = String(row[rib]||'').trim();
+        const rcc = String(row[cib]||'').trim();
+        if (rmc) {
+          if (!saqByBanco[rmc]) saqByBanco[rmc] = {rmcVal:0,rmcQtd:0,rccVal:0,rccQtd:0};
+          saqByBanco[rmc].rmcVal += lim; saqByBanco[rmc].rmcQtd++;
+        }
+        if (rcc) {
+          if (!saqByBanco[rcc]) saqByBanco[rcc] = {rmcVal:0,rmcQtd:0,rccVal:0,rccQtd:0};
+          saqByBanco[rcc].rccVal += lim; saqByBanco[rcc].rccQtd++;
+        }
+      }
+    }
+    // Saques PAN (623) via panSaqueData
+    if (typeof panSaqueData !== 'undefined' && Object.keys(panSaqueData).length > 0) {
+      const rmi2 = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RMC');
+      const rci2c = rawHeaders.findIndex(h=>String(h||'').trim()==='Codigo RCC');
+      const rib2 = rmi2>=0?rmi2:38, cib2 = rci2c>=0?rci2c:45;
+      for (let r=1; r<rawSheetData.length; r++) {
+        const row = rawSheetData[r];
+        if (!row||(!row[0]&&!row[1]&&!row[2])) continue;
+        const cpf = cpfNorm(row[0]);
+        const pan = panSaqueData[cpf];
+        if (!pan) continue;
+        const rmc = String(row[rib2]||'').trim();
+        const rcc = String(row[cib2]||'').trim();
+        if (rmc === '623' && pan.rmc > 0) {
+          if (!saqByBanco['623']) saqByBanco['623'] = {rmcVal:0,rmcQtd:0,rccVal:0,rccQtd:0};
+          saqByBanco['623'].rmcVal += pan.rmc; saqByBanco['623'].rmcQtd++;
+        }
+        if (rcc === '623' && pan.rcc > 0) {
+          if (!saqByBanco['623']) saqByBanco['623'] = {rmcVal:0,rmcQtd:0,rccVal:0,rccQtd:0};
+          saqByBanco['623'].rccVal += pan.rcc; saqByBanco['623'].rccQtd++;
+        }
+      }
+    }
+
+    const totRMC2 = Object.values(rmcCnt2).reduce((s,v)=>s+v,0);
+    const totRCC2 = Object.values(rccCnt2).reduce((s,v)=>s+v,0);
     const rc_rows = [
       ['RESUMO CARTAO — RMC / RCC'],
       [],
-      ['Total CPF com RMC', Object.values(rmcCnt2).reduce((s,v)=>s+v,0),
-       'Total CPF com RCC', Object.values(rccCnt2).reduce((s,v)=>s+v,0),
-       'Total SEM RMC', semRMC2, 'Total SEM RCC', semRCC2],
+      ['Total CPF com RMC', totRMC2, 'Total CPF com RCC', totRCC2, 'Total SEM RMC', semRMC2, 'Total SEM RCC', semRCC2],
       [],
-      ['Codigo','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC']
+      ['Codigo','Nome do Banco','Total CPF RMC','Total CPF RCC','Total SEM RMC','Total SEM RCC',
+       'Saque RMC BMG (R$)','Qtd','Saque RCC BMG (R$)','Qtd','Saque RMC PAN (R$)','Qtd','Saque RCC PAN (R$)','Qtd']
     ];
     allBanks2.forEach((code,i) => {
-      rc_rows.push([code, BMAP[code]||('Banco '+code), rmcCnt2[code]||0, rccCnt2[code]||0,
-        i===0?semRMC2:0, i===0?semRCC2:0]);
+      const s = saqByBanco[code]||{rmcVal:0,rmcQtd:0,rccVal:0,rccQtd:0};
+      // RMC PAN e RCC PAN só para código 623
+      const rmcPanVal = code==='623'?(saqByBanco['623']||{}).rmcVal||0:null;
+      const rmcPanQtd = code==='623'?(saqByBanco['623']||{}).rmcQtd||0:null;
+      const rccPanVal = code==='623'?(saqByBanco['623']||{}).rccVal||0:null;
+      const rccPanQtd = code==='623'?(saqByBanco['623']||{}).rccQtd||0:null;
+      rc_rows.push([
+        code, BMAP[code]||('Banco '+code), rmcCnt2[code]||0, rccCnt2[code]||0,
+        i===0?semRMC2:0, i===0?semRCC2:0,
+        code==='318'?(s.rmcVal||null):null, code==='318'?(s.rmcQtd||null):null,
+        code==='318'?(s.rccVal||null):null, code==='318'?(s.rccQtd||null):null,
+        code==='623'?(rmcPanVal||null):null, code==='623'?(rmcPanQtd||null):null,
+        code==='623'?(rccPanVal||null):null, code==='623'?(rccPanQtd||null):null
+      ]);
     });
-    rc_rows.push(['TOTAL','',
-      Object.values(rmcCnt2).reduce((s,v)=>s+v,0),
-      Object.values(rccCnt2).reduce((s,v)=>s+v,0),
-      semRMC2, semRCC2]);
+    const totSaqRMCBMG2 = (saqByBanco['318']||{}).rmcVal||0;
+    const totSaqRMCBMGQtd = (saqByBanco['318']||{}).rmcQtd||0;
+    const totSaqRCCBMG2 = (saqByBanco['318']||{}).rccVal||0;
+    const totSaqRCCBMGQtd = (saqByBanco['318']||{}).rccQtd||0;
+    const totSaqRMCPAN2 = (saqByBanco['623']||{}).rmcVal||0;
+    const totSaqRMCPANQtd = (saqByBanco['623']||{}).rmcQtd||0;
+    const totSaqRCCPAN2 = (saqByBanco['623']||{}).rccVal||0;
+    const totSaqRCCPANQtd = (saqByBanco['623']||{}).rccQtd||0;
+    rc_rows.push(['TOTAL','', totRMC2, totRCC2, semRMC2, semRCC2,
+      totSaqRMCBMG2, totSaqRMCBMGQtd, totSaqRCCBMG2, totSaqRCCBMGQtd,
+      totSaqRMCPAN2, totSaqRMCPANQtd, totSaqRCCPAN2, totSaqRCCPANQtd]);
     addSheet(wb, 'Resumo Cartao', rc_rows);
 
     // ── 3. ANALITICO PMT BANCO DE ORIGEM ─────────────────────
