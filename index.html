@@ -2363,7 +2363,7 @@ function exportarEstudoCompleto() {
     }
 
     function cpfNorm(v) {
-      try { return String(parseInt(parseFloat(String(v)))).padStart(11,'0'); } catch(e) { return String(v||''); }
+      try { const n=parseInt(parseFloat(String(v))); return isNaN(n)?'':String(n).padStart(11,'0'); } catch(e) { return ''; }
     }
 
     // ── 1. RESUMO PORTABILIDADE ───────────────────────────────
@@ -2439,7 +2439,7 @@ function exportarEstudoCompleto() {
        'Vlr Cont. TOTAL','Troco TOTAL','Saque RMC BMG','Saque RCC BMG','Saque Daycoval','Liquido Total']
     ];
     clientes.forEach(c => {
-      rp_rows.push([c.nome, c.cpf, c.idade, c.especie, c.melhorBanco, c.qtdContr,
+      rp_rows.push([c.nome, {t:'s',v:String(c.cpf).padStart(11,'0')}, c.idade, c.especie, c.melhorBanco, c.qtdContr,
         c.vlrPorto, c.trocoPorto, c.vlrPMT, c.trocoPMT,
         c.vlrTotal, c.trocoTotal, c.saqRMCBMG, c.saqRCCBMG, c.saqDAY, c.liquido]);
     });
@@ -2458,7 +2458,10 @@ function exportarEstudoCompleto() {
       '389':'MERCANTIL DO BRASIL','934':'BANCO CETELEM','237':'BRADESCO','935':'FACTA',
       '121':'AGIBANK','104':'CAIXA ECONOMICA','41':'BANRISUL','243':'BANCO MASTER',
       '903':'BANCO DO BRASIL','626':'C6','81':'BRB','386':'NU FINANCEIRA',
-      '254':'PARANA BANCO','79':'ORIGINAL','329':'QI TECH','643':'PINE','422':'SAFRA'};
+      '254':'PARANA BANCO','79':'ORIGINAL','329':'QI TECH','643':'PINE','422':'SAFRA',
+      '752':'BNP PARIBAS','330':'PARATI','359':'ZEMA','748':'SICREDI','756':'SICOOB',
+      '77':'INTER','29':'ITAU','341':'ITAU','1':'BANCO DO BRASIL','69':'BPN BRASIL',
+      '908':'PORTOCRED','321':'CREFISA','274':'MONEY PLUS','329':'QI TECH'};
     const rmcCnt2={}, rccCnt2={}; let semRMC2=0, semRCC2=0;
     for (let r=1; r<rawSheetData.length; r++) {
       const row=rawSheetData[r]; if(!row||(!row[0]&&!row[1]&&!row[2])) continue;
@@ -2529,7 +2532,7 @@ function exportarEstudoCompleto() {
       'Parcela','Saldo Devedor','Prazo','Banco Prioritario','Taxa Aplicada',
       'Coeficiente','Valor Contrato','Troco','Elegivel','Motivo']];
     allResults.forEach(r => {
-      el_rows.push([r.cpf, r.nome, r.idade, r.especie, r.bancoOrigem, r.contrato,
+      el_rows.push([{t:'s',v:String(r.cpf).padStart(11,'0')}, r.nome, r.idade, r.especie, r.bancoOrigem, r.contrato,
         fmtN(r.parcela), fmtN(r.saldo), r.prazo, r.destino,
         fmtN(r.taxa), r.coef ? Math.round(r.coef*100000)/100000 : 0,
         fmtN(r.valorContrato), fmtN(r.troco),
@@ -2545,8 +2548,9 @@ function exportarEstudoCompleto() {
       const bIdx = rawHeaders.findIndex(h=>String(h||'').toLowerCase().includes('beneficio')||String(h||'').toLowerCase().includes('benefício'));
       const nIdx = rawHeaders.findIndex(h=>String(h||'').trim().toLowerCase()==='nome');
       const bI = bIdx>=0?bIdx:1, nI = nIdx>=0?nIdx:2;
+      const isBMGtab = codigoBanco === '318';
       const hdr = ['CPF','Beneficio','Nome'];
-      if (temDatafast) hdr.push('Limite Saque BMG (R$)');
+      if (temDatafast && isBMGtab) hdr.push('Limite Saque BMG (R$)');
       const rows = [hdr];
       for (let r=1; r<rawSheetData.length; r++) {
         const row = rawSheetData[r];
@@ -2560,7 +2564,7 @@ function exportarEstudoCompleto() {
         if (!include) continue;
         const cpf = cpfNorm(row[0]);
         const dataRow = [cpf, String(row[bI]||''), String(row[nI]||'')];
-        if (temDatafast) {
+        if (temDatafast && isBMGtab) {
           const info = datafastResultsBMG[cpf];
           dataRow.push(info && info.limite > 0 ? info.limite : 'Sem limite');
         }
