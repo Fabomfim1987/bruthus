@@ -547,7 +547,7 @@ td { padding:10px 14px; white-space:nowrap; }
 
   <!-- UPLOAD SCREEN -->
   <div id="screen-upload">
-    <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+    <label class="upload-area" id="upload-area" for="file-input" style="cursor:pointer;display:block;">
       <svg class="upload-icon" viewBox="0 0 64 64" fill="none">
         <rect width="64" height="64" rx="12" fill="rgba(21,101,192,0.2)"/>
         <path d="M32 42V22M22 32l10-10 10 10" stroke="#2196f3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -556,12 +556,12 @@ td { padding:10px 14px; white-space:nowrap; }
       </svg>
       <div class="upload-title">Consulta em Lote</div>
       <div class="upload-sub">Arraste a base completa aqui ou clique para selecionar</div>
-      <button class="btn-upload" onclick="event.stopPropagation();document.getElementById('file-input').click()">
+      <span class="btn-upload" style="display:inline-block;cursor:pointer;">
         Selecionar Arquivo
-      </button>
+      </span>
       <div class="upload-formats">.xlsx &nbsp;.xls &nbsp;.csv</div>
-      <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="handleFile(this.files[0])"/>
-    </div>
+    </label>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="handleFile(this.files[0])" style="display:none"/>
 
     <div class="historico" id="historico-section">
       <h3>📁 Histórico</h3>
